@@ -1,0 +1,23 @@
+[package]
+name = "geomanpy"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+authors = ["Bowan Foryt <bowan@valstad.com>"]
+description = "Python bindings for glam and wreck, providing geometric/linalg primitives and collision detection."
+repository = "https://github.com/valstad-shipworks/geomanpy"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+
+[dependencies]
+approx = "0.5.1"
+glam = { version = "0.32.1", features = ["serde", "approx"] }
+numpy = "0.28.0"
+pyo3 = { version = "0.28.3", features = ["multiple-pymethods"] }
+pythonize = "0.28.0"
+serde = { version = "1.0.228", features = ["alloc", "derive"] }
+wreck = { version = "0.2.0", features = ["serde", "approx"] }
