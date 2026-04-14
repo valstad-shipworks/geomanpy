@@ -189,27 +189,6 @@ macro_rules! impl_serde_methods {
             fn try_from_dict(obj: &pyo3::Bound<'_, pyo3::types::PyAny>) -> Option<Self> {
                 pythonize::depythonize::<$inner>(obj).ok().map(Self)
             }
-
-            /// Serialize to binary (JSON bytes, deterministic).
-            fn to_binary<'py>(&self, py: pyo3::Python<'py>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyBytes>> {
-                let bytes = serde_json::to_vec(&self.0)
-                    .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
-                Ok(pyo3::types::PyBytes::new(py, &bytes))
-            }
-
-            /// Deserialize from binary (JSON bytes).
-            #[staticmethod]
-            fn from_binary(data: &[u8]) -> pyo3::PyResult<Self> {
-                let inner: $inner = serde_json::from_slice(data)
-                    .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
-                Ok(Self(inner))
-            }
-
-            /// Try to deserialize from binary; returns None on failure.
-            #[staticmethod]
-            fn try_from_binary(data: &[u8]) -> Option<Self> {
-                serde_json::from_slice::<$inner>(data).ok().map(Self)
-            }
         }
     };
 }

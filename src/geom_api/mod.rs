@@ -9,6 +9,7 @@ pub mod raw_geom_util;
 mod sphere_ext;
 pub mod trimesh_convert;
 mod vec3_ext;
+mod wreck_ext;
 
 use pyo3::prelude::*;
 
