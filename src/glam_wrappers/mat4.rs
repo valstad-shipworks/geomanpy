@@ -8,10 +8,25 @@ use super::{
     transpose_array2,
 };
 
-#[pyclass(from_py_object, name = "Mat4")]
+#[pyclass(skip_from_py_object, name = "Mat4")]
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
 pub struct PyDMat4(pub(crate) DMat4);
+
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyDMat4 {
+    type Error = pyo3::PyErr;
+    fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+        if let Ok(v) = ob.cast::<Self>() { return Ok(v.borrow().clone()); }
+        let cols: ((f64,f64,f64,f64),(f64,f64,f64,f64),(f64,f64,f64,f64),(f64,f64,f64,f64)) =
+            ob.call_method0("to_cols_array_2d")?.extract()?;
+        Ok(Self(glam::DMat4::from_cols(
+            glam::DVec4::new(cols.0.0, cols.0.1, cols.0.2, cols.0.3),
+            glam::DVec4::new(cols.1.0, cols.1.1, cols.1.2, cols.1.3),
+            glam::DVec4::new(cols.2.0, cols.2.1, cols.2.2, cols.2.3),
+            glam::DVec4::new(cols.3.0, cols.3.1, cols.3.2, cols.3.3),
+        )))
+    }
+}
 
 impl From<DMat4> for PyDMat4 {
     #[inline]

@@ -2,12 +2,26 @@ use glam::DQuat;
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::prelude::*;
 
-use super::{PyDAffine3, PyDMat3, PyDMat4, PyDVec2, PyDVec3, PyEulerRot, extract_numpy_vector};
+use super::{PyDAffine3, PyDMat3, PyDMat4, PyDVec2, PyDVec3, PyEulerRot, extract_numpy_vector, impl_serde_methods};
 
-#[pyclass(from_py_object, name = "Quat")]
+#[pyclass(skip_from_py_object, name = "Quat")]
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
 pub struct PyDQuat(pub(crate) DQuat);
+
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyDQuat {
+    type Error = pyo3::PyErr;
+    fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+        if let Ok(v) = ob.cast::<Self>() {
+            return Ok(v.borrow().clone());
+        }
+        let x: f64 = ob.getattr("x")?.extract()?;
+        let y: f64 = ob.getattr("y")?.extract()?;
+        let z: f64 = ob.getattr("z")?.extract()?;
+        let w: f64 = ob.getattr("w")?.extract()?;
+        Ok(Self(DQuat::from_xyzw(x, y, z, w)))
+    }
+}
 
 impl From<DQuat> for PyDQuat {
     #[inline]
@@ -392,3 +406,5 @@ impl PyDQuat {
         self.0 = DQuat::from_array(state);
     }
 }
+
+impl_serde_methods!(PyDQuat, DQuat);

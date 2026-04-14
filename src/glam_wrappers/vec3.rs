@@ -1,13 +1,26 @@
-use super::{PyDVec2, PyDVec4, extract_numpy_vector, impl_vec_constants, impl_vec_unary};
-use glam::DVec3;
+use super::{PyDMat3, PyDVec2, PyDVec4, extract_numpy_vector, impl_serde_methods, impl_vec_constants, impl_vec_unary};
+use glam::{DMat3, DVec3};
 use numpy::{PyArray1, PyReadonlyArray1};
-use pyo3::exceptions::PyIndexError;
+use pyo3::exceptions::{PyIndexError, PyValueError};
 use pyo3::prelude::*;
 
-#[pyclass(from_py_object, name = "Vec3")]
+#[pyclass(skip_from_py_object, name = "Vec3")]
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
 pub struct PyDVec3(pub(crate) DVec3);
+
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyDVec3 {
+    type Error = pyo3::PyErr;
+    fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+        if let Ok(v) = ob.cast::<Self>() {
+            return Ok(v.borrow().clone());
+        }
+        let x: f64 = ob.getattr("x")?.extract()?;
+        let y: f64 = ob.getattr("y")?.extract()?;
+        let z: f64 = ob.getattr("z")?.extract()?;
+        Ok(Self(DVec3::new(x, y, z)))
+    }
+}
 
 impl From<DVec3> for PyDVec3 {
     #[inline]
@@ -639,3 +652,75 @@ impl PyDVec3 {
         PyArray1::from_slice(py, &self.0.to_array())
     }
 }
+
+/// Additional helper methods ported from valstad geom.py.
+#[pymethods]
+impl PyDVec3 {
+    /// Create a Vec3 from a rotation matrix (direction) and radius.
+    ///
+    /// Equivalent to `rotation * Vec3(1, 0, 0) * radius`.
+    #[staticmethod]
+    fn from_spherical(angle: PyDMat3, radius: f64) -> Self {
+        let ref_axis = DVec3::X;
+        let rotated = angle.0 * ref_axis;
+        Self(rotated * radius)
+    }
+
+    /// Compute the rotation (Mat3) that rotates `ref_axis` (default X+) to align with `self`.
+    ///
+    /// Returns Mat3.identity() when `self` is parallel to `ref_axis`, and a 180°
+    /// rotation around a perpendicular axis when anti-parallel.
+    #[pyo3(signature = (ref_axis=None))]
+    fn to_rotation(&self, ref_axis: Option<PyDVec3>) -> PyResult<PyDMat3> {
+        let v = self.0;
+        let r = ref_axis.map(|r| r.0).unwrap_or(DVec3::X);
+
+        let v_len = v.length();
+        let r_len = r.length();
+        if v_len < 1e-12 || r_len < 1e-12 {
+            return Err(PyValueError::new_err(
+                "Rotation undefined for zero-length vector.",
+            ));
+        }
+
+        let v_hat = v / v_len;
+        let r_hat = r / r_len;
+
+        let cross = r_hat.cross(v_hat);
+        let cross_len = cross.length();
+
+        if cross_len < 1e-12 {
+            let dot = r_hat.dot(v_hat);
+            if dot > 0.0 {
+                return Ok(PyDMat3(DMat3::IDENTITY));
+            } else {
+                // Anti-parallel: rotate 180° around a perpendicular axis
+                let perp = if r_hat.x.abs() < 0.9 {
+                    DVec3::X
+                } else {
+                    DVec3::Y
+                };
+                let axis = r_hat.cross(perp).normalize();
+                return Ok(PyDMat3(DMat3::from_axis_angle(
+                    axis,
+                    std::f64::consts::PI,
+                )));
+            }
+        }
+
+        let axis = cross / cross_len;
+        let angle = cross_len.atan2(r_hat.dot(v_hat));
+        Ok(PyDMat3(DMat3::from_axis_angle(axis, angle)))
+    }
+
+    /// Rotate this vector around a pivot point by the given rotation matrix.
+    ///
+    /// Equivalent to `rotation * (self - point) + point`.
+    fn rotate_around(&self, point: PyDVec3, rotation: PyDMat3) -> Self {
+        let rel = self.0 - point.0;
+        let rotated = rotation.0 * rel;
+        Self(rotated + point.0)
+    }
+}
+
+impl_serde_methods!(PyDVec3, DVec3);

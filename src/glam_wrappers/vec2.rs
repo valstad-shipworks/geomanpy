@@ -5,10 +5,20 @@ use pyo3::prelude::*;
 
 use super::{PyDVec3, extract_numpy_vector, impl_vec_constants, impl_vec_unary};
 
-#[pyclass(from_py_object, name = "Vec2")]
+#[pyclass(skip_from_py_object, name = "Vec2")]
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
 pub struct PyDVec2(pub(crate) DVec2);
+
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyDVec2 {
+    type Error = pyo3::PyErr;
+    fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+        if let Ok(v) = ob.cast::<Self>() { return Ok(v.borrow().clone()); }
+        let x: f64 = ob.getattr("x")?.extract()?;
+        let y: f64 = ob.getattr("y")?.extract()?;
+        Ok(Self(DVec2::new(x, y)))
+    }
+}
 
 impl From<DVec2> for PyDVec2 {
     #[inline]

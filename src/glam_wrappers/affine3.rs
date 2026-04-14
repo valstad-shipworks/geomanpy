@@ -3,13 +3,29 @@ use numpy::{PyArray2, PyReadonlyArray2};
 use pyo3::prelude::*;
 
 use super::{
-    PyDMat3, PyDMat4, PyDQuat, PyDVec3, array2_from_rows, extract_numpy_matrix, transpose_array2,
+    PyDMat3, PyDMat4, PyDQuat, PyDVec3, array2_from_rows, extract_numpy_matrix,
+    impl_serde_methods, transpose_array2,
 };
 
-#[pyclass(from_py_object, name = "Affine3")]
+#[pyclass(skip_from_py_object, name = "Affine3")]
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
 pub struct PyDAffine3(pub(crate) DAffine3);
+
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyDAffine3 {
+    type Error = pyo3::PyErr;
+    fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+        if let Ok(v) = ob.cast::<Self>() {
+            return Ok(v.borrow().clone());
+        }
+        let mat3: PyDMat3 = ob.getattr("matrix3")?.extract()?;
+        let trans: PyDVec3 = ob.getattr("translation")?.extract()?;
+        Ok(Self(DAffine3 {
+            matrix3: mat3.0.into(),
+            translation: trans.0,
+        }))
+    }
+}
 
 impl From<DAffine3> for PyDAffine3 {
     #[inline]
@@ -290,3 +306,35 @@ impl PyDAffine3 {
         self.0 = DAffine3::from_cols_array(&state);
     }
 }
+
+/// Additional helper methods ported from valstad geom.py.
+#[pymethods]
+impl PyDAffine3 {
+    /// Convert to a 4x4 homogeneous transformation matrix (numpy).
+    fn to_matrix<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
+        let m = self.0.matrix3;
+        let t = self.0.translation;
+        let rows: [[f64; 4]; 4] = [
+            [m.x_axis.x, m.y_axis.x, m.z_axis.x, t.x],
+            [m.x_axis.y, m.y_axis.y, m.z_axis.y, t.y],
+            [m.x_axis.z, m.y_axis.z, m.z_axis.z, t.z],
+            [0.0, 0.0, 0.0, 1.0],
+        ];
+        array2_from_rows(py, rows)
+    }
+
+    /// Create an Affine3 from a 4x4 homogeneous transformation matrix (numpy).
+    #[staticmethod]
+    fn from_matrix(array: PyReadonlyArray2<'_, f64>) -> PyResult<Self> {
+        let rows = extract_numpy_matrix::<4, 4>(array, "Affine3.from_matrix")?;
+        let rot = glam::DMat3::from_cols(
+            glam::DVec3::new(rows[0][0], rows[1][0], rows[2][0]),
+            glam::DVec3::new(rows[0][1], rows[1][1], rows[2][1]),
+            glam::DVec3::new(rows[0][2], rows[1][2], rows[2][2]),
+        );
+        let t = glam::DVec3::new(rows[0][3], rows[1][3], rows[2][3]);
+        Ok(Self(DAffine3::from_mat3_translation(rot, t)))
+    }
+}
+
+impl_serde_methods!(PyDAffine3, DAffine3);

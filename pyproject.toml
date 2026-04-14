@@ -10,6 +10,7 @@ dynamic = ["version"]
 [tool.maturin]
 features = ["pyo3/extension-module"]
 bindings = "pyo3"
+profile = "release"
 module-name = "geomanpy._geomanpy"
 python-source = "py_src"
 classifiers = [

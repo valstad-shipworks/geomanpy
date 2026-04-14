@@ -25,7 +25,7 @@ fn v3d(v: Vec3) -> PyDVec3 {
     PyDVec3(glam::DVec3::new(v.x as f64, v.y as f64, v.z as f64))
 }
 
-#[pyclass(from_py_object, name = "Collider")]
+#[pyclass(skip_from_py_object, name = "Collider")]
 #[derive(Debug, Clone)]
 pub struct PyCollider(pub(crate) Collider<Pointcloud>);
 
@@ -33,19 +33,19 @@ pub struct PyCollider(pub(crate) Collider<Pointcloud>);
 #[derive(Debug, Clone)]
 pub struct PyPointcloud(pub(crate) Pointcloud);
 
-#[pyclass(from_py_object, name = "Sphere")]
+#[pyclass(skip_from_py_object, name = "Sphere")]
 #[derive(Debug, Clone, Copy)]
 pub struct PySphere(pub(crate) Sphere);
 
-#[pyclass(from_py_object, name = "Capsule")]
+#[pyclass(skip_from_py_object, name = "Capsule")]
 #[derive(Debug, Clone, Copy)]
 pub struct PyCapsule(pub(crate) Capsule);
 
-#[pyclass(from_py_object, name = "Cuboid")]
+#[pyclass(skip_from_py_object, name = "Cuboid")]
 #[derive(Debug, Clone, Copy)]
 pub struct PyCuboid(pub(crate) Cuboid);
 
-#[pyclass(from_py_object, name = "Cylinder")]
+#[pyclass(skip_from_py_object, name = "Cylinder")]
 #[derive(Debug, Clone, Copy)]
 pub struct PyCylinder(pub(crate) Cylinder);
 
@@ -77,6 +77,90 @@ pub struct PyPlane(pub(crate) Plane);
 #[derive(Debug, Clone)]
 pub struct PySphereCollection(pub(crate) SpheresSoA);
 
+// ── Cross-module FromPyObject impls ────────────────────────────────────
+// These try a fast downcast first, then fall back to attribute extraction
+// so that types created in one pyo3 extension module can be passed to another.
+
+fn extract_f32_vec3(ob: &pyo3::Bound<'_, pyo3::PyAny>) -> PyResult<Vec3> {
+    let x: f64 = ob.getattr("x")?.extract()?;
+    let y: f64 = ob.getattr("y")?.extract()?;
+    let z: f64 = ob.getattr("z")?.extract()?;
+    Ok(Vec3::new(x as f32, y as f32, z as f32))
+}
+
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PySphere {
+    type Error = pyo3::PyErr;
+    fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
+        if let Ok(v) = ob.cast::<Self>() { return Ok(v.borrow().clone()); }
+        let center = extract_f32_vec3(&ob.getattr("center")?)?;
+        let radius: f32 = ob.getattr("radius")?.extract()?;
+        Ok(Self(Sphere::new(center, radius)))
+    }
+}
+
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyCuboid {
+    type Error = pyo3::PyErr;
+    fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
+        if let Ok(v) = ob.cast::<Self>() { return Ok(v.borrow().clone()); }
+        let center = extract_f32_vec3(&ob.getattr("center")?)?;
+        let he: (f32, f32, f32) = ob.getattr("half_extents")?.extract()?;
+        let axes: ((f32,f32,f32),(f32,f32,f32),(f32,f32,f32)) = ob.getattr("axes")?.extract()?;
+        Ok(Self(Cuboid::new(
+            center,
+            [
+                Vec3::new(axes.0.0, axes.0.1, axes.0.2),
+                Vec3::new(axes.1.0, axes.1.1, axes.1.2),
+                Vec3::new(axes.2.0, axes.2.1, axes.2.2),
+            ],
+            [he.0, he.1, he.2],
+        )))
+    }
+}
+
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyCylinder {
+    type Error = pyo3::PyErr;
+    fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
+        if let Ok(v) = ob.cast::<Self>() { return Ok(v.borrow().clone()); }
+        let p1 = extract_f32_vec3(&ob.getattr("p1")?)?;
+        let p2 = extract_f32_vec3(&ob.getattr("p2")?)?;
+        let radius: f32 = ob.getattr("radius")?.extract()?;
+        Ok(Self(Cylinder::new(p1, p2, radius)))
+    }
+}
+
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyCapsule {
+    type Error = pyo3::PyErr;
+    fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
+        if let Ok(v) = ob.cast::<Self>() { return Ok(v.borrow().clone()); }
+        let p1 = extract_f32_vec3(&ob.getattr("p1")?)?;
+        let p2 = extract_f32_vec3(&ob.getattr("p2")?)?;
+        let radius: f32 = ob.getattr("radius")?.extract()?;
+        Ok(Self(Capsule::new(p1, p2, radius)))
+    }
+}
+
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyCollider {
+    type Error = pyo3::PyErr;
+    fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
+        if let Ok(v) = ob.cast::<Self>() { return Ok(v.borrow().clone()); }
+        // Rebuild collider from individual shape collections
+        let mut collider = Collider::<Pointcloud>::default();
+        // Spheres
+        let spheres: Vec<PySphere> = ob.call_method0("cuboids")?.extract().unwrap_or_default();
+        for s in spheres { collider.add(s.0); }
+        // Cuboids
+        let cuboids: Vec<PyCuboid> = ob.call_method0("cuboids")?.extract().unwrap_or_default();
+        for b in cuboids { collider.add(b.0); }
+        // Cylinders
+        let cylinders: Vec<PyCylinder> = ob.call_method0("cylinders")?.extract().unwrap_or_default();
+        for c in cylinders { collider.add(c.0); }
+        // Capsules
+        let capsules: Vec<PyCapsule> = ob.call_method0("capsules")?.extract().unwrap_or_default();
+        for c in capsules { collider.add(c.0); }
+        Ok(Self(collider))
+    }
+}
+
 macro_rules! impl_from_wreck {
     ($py:ty, $inner:ty) => {
         impl From<$inner> for $py {
@@ -89,6 +173,13 @@ macro_rules! impl_from_wreck {
             #[inline]
             fn from(v: $py) -> Self {
                 v.0
+            }
+        }
+        impl std::ops::Deref for $py {
+            type Target = $inner;
+            #[inline]
+            fn deref(&self) -> &Self::Target {
+                &self.0
             }
         }
     };
@@ -108,7 +199,7 @@ impl_from_wreck!(PyPointcloud, Pointcloud);
 impl_from_wreck!(PySphereCollection, SpheresSoA);
 impl_from_wreck!(PyCollider, Collider<Pointcloud>);
 
-#[pyclass(from_py_object, name = "Shape")]
+#[pyclass(skip_from_py_object, name = "Shape")]
 #[derive(Debug, Clone)]
 pub enum PyShape {
     Sphere(PySphere),
@@ -124,6 +215,31 @@ pub enum PyShape {
     Pointcloud(PyPointcloud),
 }
 
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyShape {
+    type Error = pyo3::PyErr;
+    fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
+        // Try downcast to enum first (same module)
+        if let Ok(v) = ob.cast::<Self>() {
+            return Ok(v.borrow().clone());
+        }
+        // Try each variant's FromPyObject (handles cross-module via attribute extraction)
+        if let Ok(v) = ob.extract::<PySphere>() { return Ok(Self::Sphere(v)); }
+        if let Ok(v) = ob.extract::<PyCapsule>() { return Ok(Self::Capsule(v)); }
+        if let Ok(v) = ob.extract::<PyCuboid>() { return Ok(Self::Cuboid(v)); }
+        if let Ok(v) = ob.extract::<PyCylinder>() { return Ok(Self::Cylinder(v)); }
+        if let Ok(v) = ob.extract::<PyConvexPolytope>() { return Ok(Self::ConvexPolytope(v)); }
+        if let Ok(v) = ob.extract::<PyConvexPolygon>() { return Ok(Self::ConvexPolygon(v)); }
+        if let Ok(v) = ob.extract::<PyLine>() { return Ok(Self::Line(v)); }
+        if let Ok(v) = ob.extract::<PyRay>() { return Ok(Self::Ray(v)); }
+        if let Ok(v) = ob.extract::<PyLineSegment>() { return Ok(Self::LineSegment(v)); }
+        if let Ok(v) = ob.extract::<PyPlane>() { return Ok(Self::Plane(v)); }
+        if let Ok(v) = ob.extract::<PyPointcloud>() { return Ok(Self::Pointcloud(v)); }
+        Err(pyo3::exceptions::PyTypeError::new_err(
+            "expected a Shape (Sphere, Cuboid, Cylinder, etc.)"
+        ))
+    }
+}
+
 macro_rules! impl_transform_scale_py {
     ($ty:ty) => {
         #[pymethods]
@@ -132,31 +248,31 @@ macro_rules! impl_transform_scale_py {
                 self.0.scale_d(factor);
             }
             fn scaled(&self, factor: f64) -> Self {
-                Self(self.0.clone().scaled_d(factor))
+                Self(self.0.scaled_d(factor))
             }
             fn translate(&mut self, offset: PyDVec3) {
                 self.0.translate_d(offset.0);
             }
             fn translated(&self, offset: PyDVec3) -> Self {
-                Self(self.0.clone().translated_d(offset.0))
+                Self(self.0.translated_d(offset.0))
             }
             fn rotate_mat(&mut self, mat: PyDMat3) {
                 self.0.rotate_mat_d(mat.0);
             }
             fn rotated_mat(&self, mat: PyDMat3) -> Self {
-                Self(self.0.clone().rotated_mat_d(mat.0))
+                Self(self.0.rotated_mat_d(mat.0))
             }
             fn rotate_quat(&mut self, quat: PyDQuat) {
                 self.0.rotate_quat_d(quat.0);
             }
             fn rotated_quat(&self, quat: PyDQuat) -> Self {
-                Self(self.0.clone().rotated_quat_d(quat.0))
+                Self(self.0.rotated_quat_d(quat.0))
             }
             fn transform(&mut self, mat: PyDAffine3) {
                 self.0.transform_d(mat.0);
             }
             fn transformed(&self, mat: PyDAffine3) -> Self {
-                Self(self.0.clone().transformed_d(mat.0))
+                Self(self.0.transformed_d(mat.0))
             }
         }
     };
@@ -286,6 +402,7 @@ macro_rules! impl_approx_py {
 impl_approx_py!(PySphere);
 impl_approx_py!(PyCapsule);
 impl_approx_py!(PyCuboid);
+impl_approx_py!(PyCylinder);
 impl_approx_py!(PyPlane);
 impl_approx_py!(PyLine);
 impl_approx_py!(PyRay);
@@ -293,6 +410,7 @@ impl_approx_py!(PyLineSegment);
 impl_approx_py!(PyConvexPolygon);
 impl_approx_py!(PyConvexPolytope);
 impl_approx_py!(PySphereCollection);
+impl_approx_py!(PyPointcloud);
 
 #[pymethods]
 impl PySphere {
@@ -336,8 +454,8 @@ impl PyCapsule {
     }
 
     #[getter]
-    fn p2(&self) -> PyResult<PyDVec3> {
-        Ok(v3d(self.0.p2()))
+    fn p2(&self) -> PyDVec3 {
+        v3d(self.0.p2())
     }
 
     #[getter]
@@ -347,11 +465,6 @@ impl PyCapsule {
 
     fn closest_point_to(&self, point: PyDVec3) -> PyResult<PyDVec3> {
         Ok(v3d(self.0.closest_point_to(dv3(point))))
-    }
-
-    fn bounding_sphere(&self) -> PyResult<(PyDVec3, f64)> {
-        let (c, r) = self.0.bounding_sphere();
-        Ok((v3d(c), r as f64))
     }
 
     fn stretch(&self, translation: PyDVec3) -> Vec<PyShape> {
@@ -433,12 +546,17 @@ impl PyCuboid {
     }
 
     #[getter]
-    fn axis_aligned(&self) -> bool {
-        self.0.axis_aligned
+    fn full_extents(&self) -> [f64; 3] {
+        [
+            self.0.half_extents[0] as f64 * 2.0,
+            self.0.half_extents[1] as f64 * 2.0,
+            self.0.half_extents[2] as f64 * 2.0,
+        ]
     }
 
-    fn bounding_sphere_radius(&self) -> f64 {
-        self.0.bounding_sphere_radius() as f64
+    #[getter]
+    fn axis_aligned(&self) -> bool {
+        self.0.axis_aligned
     }
 
     fn stretch(&self, translation: PyDVec3) -> Vec<PyShape> {
@@ -452,6 +570,75 @@ impl PyCuboid {
 
     fn __repr__(&self) -> String {
         self.0.to_string()
+    }
+
+    /// Return the orientation of the cuboid as a Mat3 (rotation matrix from axes).
+    #[getter]
+    fn orientation(&self) -> PyDMat3 {
+        let a = &self.0.axes;
+        PyDMat3(glam::DMat3::from_cols(
+            glam::DVec3::new(a[0].x as f64, a[0].y as f64, a[0].z as f64),
+            glam::DVec3::new(a[1].x as f64, a[1].y as f64, a[1].z as f64),
+            glam::DVec3::new(a[2].x as f64, a[2].y as f64, a[2].z as f64),
+        ))
+    }
+
+    /// Return the full size (2 * half_extents) as a tuple.
+    #[getter]
+    fn size(&self) -> (f64, f64, f64) {
+        (
+            self.0.half_extents[0] as f64 * 2.0,
+            self.0.half_extents[1] as f64 * 2.0,
+            self.0.half_extents[2] as f64 * 2.0,
+        )
+    }
+
+    /// Return the 8 corner points of the cuboid in world space.
+    fn corners(&self) -> Vec<PyDVec3> {
+        let c = self.0.center;
+        let he = self.0.half_extents;
+        let ax = &self.0.axes;
+        let mut out = Vec::with_capacity(8);
+        for sx in [-1.0f32, 1.0] {
+            for sy in [-1.0f32, 1.0] {
+                for sz in [-1.0f32, 1.0] {
+                    let local = ax[0] * (he[0] * sx) + ax[1] * (he[1] * sy) + ax[2] * (he[2] * sz);
+                    out.push(v3d(c + local));
+                }
+            }
+        }
+        out
+    }
+
+    /// Check if a point is inside the cuboid (with a small epsilon tolerance).
+    fn contains(&self, point: PyDVec3) -> bool {
+        let p = dv3(point);
+        let local = p - self.0.center;
+        let eps = 1e-9f32;
+        for i in 0..3 {
+            let proj = local.dot(self.0.axes[i]);
+            if proj.abs() > self.0.half_extents[i] + eps {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Create a Cuboid from center, full size (not half), and orientation (Mat3).
+    #[staticmethod]
+    fn from_center_size_orientation(center: PyDVec3, size: (f64, f64, f64), orientation: PyDMat3) -> Self {
+        let half = [
+            (size.0.abs() / 2.0) as f32,
+            (size.1.abs() / 2.0) as f32,
+            (size.2.abs() / 2.0) as f32,
+        ];
+        let m = orientation.0;
+        let axes = [
+            Vec3::new(m.x_axis.x as f32, m.x_axis.y as f32, m.x_axis.z as f32),
+            Vec3::new(m.y_axis.x as f32, m.y_axis.y as f32, m.y_axis.z as f32),
+            Vec3::new(m.z_axis.x as f32, m.z_axis.y as f32, m.z_axis.z as f32),
+        ];
+        Self(Cuboid { center: dv3(center), axes, half_extents: half, axis_aligned: false })
     }
 }
 
@@ -467,18 +654,14 @@ impl PyCylinder {
         v3d(self.0.p1)
     }
 
-    fn p2(&self) -> PyResult<PyDVec3> {
-        Ok(v3d(self.0.p2()))
+    #[getter]
+    fn p2(&self) -> PyDVec3 {
+        v3d(self.0.p2())
     }
 
     #[getter]
     fn radius(&self) -> f64 {
         self.0.radius as f64
-    }
-
-    fn bounding_sphere(&self) -> PyResult<(PyDVec3, f64)> {
-        let (c, r) = self.0.bounding_sphere();
-        Ok((v3d(c), r as f64))
     }
 
     fn point_dist_sq(&self, point: PyDVec3) -> f64 {
@@ -501,6 +684,62 @@ impl PyCylinder {
 
     fn __repr__(&self) -> String {
         self.0.to_string()
+    }
+}
+
+/// Additional convenience methods for Cylinder.
+#[pymethods]
+impl PyCylinder {
+    /// Return the center point (midpoint of p1 and p2).
+    #[getter]
+    fn center(&self) -> PyDVec3 {
+        v3d((self.0.p1 + self.0.p2()) * 0.5)
+    }
+
+    /// Return the length of the cylinder (distance between p1 and p2).
+    #[getter]
+    fn length(&self) -> f64 {
+        self.0.p1.distance(self.0.p2()) as f64
+    }
+
+    /// Return the orientation as a Mat3 (rotation from z-axis to cylinder axis).
+    #[getter]
+    fn orientation(&self) -> PyDMat3 {
+        let axis = self.0.p2() - self.0.p1;
+        let len = axis.length();
+        if len < 1e-12 {
+            return PyDMat3(glam::DMat3::IDENTITY);
+        }
+        let dir = axis / len;
+        let z = glam::DVec3::new(0.0, 0.0, 1.0);
+        let d = glam::DVec3::new(dir.x as f64, dir.y as f64, dir.z as f64);
+        let q = glam::DQuat::from_rotation_arc(z, d);
+        PyDMat3(glam::DMat3::from_quat(q))
+    }
+
+    /// Create a Cylinder from center, orientation (Mat3), length, and radius.
+    #[staticmethod]
+    fn from_center_orientation_length_radius(
+        center: PyDVec3,
+        orientation: PyDMat3,
+        length: f64,
+        radius: f64,
+    ) -> Self {
+        let half_len = length.abs() / 2.0;
+        let z = glam::DVec3::new(0.0, 0.0, half_len);
+        let half_axis = orientation.0 * z;
+        let c = glam::DVec3::new(
+            center.0.x,
+            center.0.y,
+            center.0.z,
+        );
+        let p1 = c - half_axis;
+        let p2 = c + half_axis;
+        Self(Cylinder::new(
+            Vec3::new(p1.x as f32, p1.y as f32, p1.z as f32),
+            Vec3::new(p2.x as f32, p2.y as f32, p2.z as f32),
+            radius.abs() as f32,
+        ))
     }
 }
 
@@ -718,13 +957,9 @@ impl PyLineSegment {
         v3d(self.0.p1)
     }
 
-    fn p2(&self) -> PyResult<PyDVec3> {
-        Ok(v3d(self.0.p2()))
-    }
-
-    fn bounding_sphere(&self) -> PyResult<(PyDVec3, f64)> {
-        let (c, r) = self.0.bounding_sphere();
-        Ok((v3d(c), r as f64))
+    #[getter]
+    fn p2(&self) -> PyDVec3 {
+        v3d(self.0.p2())
     }
 
     fn stretch(&self, translation: PyDVec3) -> Vec<PyShape> {

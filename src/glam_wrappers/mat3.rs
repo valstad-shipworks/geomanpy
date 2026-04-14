@@ -5,13 +5,30 @@ use pyo3::prelude::*;
 
 use super::{
     PyDMat4, PyDQuat, PyDVec2, PyDVec3, PyEulerRot, array2_from_rows, extract_numpy_matrix,
-    transpose_array2,
+    impl_serde_methods, transpose_array2,
 };
 
-#[pyclass(from_py_object, name = "Mat3")]
+#[pyclass(skip_from_py_object, name = "Mat3")]
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
 pub struct PyDMat3(pub(crate) DMat3);
+
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyDMat3 {
+    type Error = pyo3::PyErr;
+    fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+        if let Ok(v) = ob.cast::<Self>() {
+            return Ok(v.borrow().clone());
+        }
+        // Extract via to_cols_array_2d -> ((r00,r01,r02),(r10,r11,r12),(r20,r21,r22))
+        let cols: ((f64,f64,f64),(f64,f64,f64),(f64,f64,f64)) =
+            ob.call_method0("to_cols_array_2d")?.extract()?;
+        Ok(Self(DMat3::from_cols(
+            glam::DVec3::new(cols.0.0, cols.0.1, cols.0.2),
+            glam::DVec3::new(cols.1.0, cols.1.1, cols.1.2),
+            glam::DVec3::new(cols.2.0, cols.2.1, cols.2.2),
+        )))
+    }
+}
 
 impl From<DMat3> for PyDMat3 {
     #[inline]
@@ -417,3 +434,5 @@ impl PyDMat3 {
         self.to_numpy(py)
     }
 }
+
+impl_serde_methods!(PyDMat3, DMat3);

@@ -6,31 +6,31 @@ from typing import Protocol, Self, overload, runtime_checkable # type: ignore
 import numpy as np
 import numpy.typing as npt
 
-class EulerRot(enum.IntEnum):
-    ZYX: int
-    ZXY: int
-    YXZ: int
-    YZX: int
-    XYZ: int
-    XZY: int
-    ZYZ: int
-    ZXZ: int
-    YXY: int
-    YZY: int
-    XYX: int
-    XZX: int
-    ZYXEx: int
-    ZXYEx: int
-    YXZEx: int
-    YZXEx: int
-    XYZEx: int
-    XZYEx: int
-    ZYZEx: int
-    ZXZEx: int
-    YXYEx: int
-    YZYEx: int
-    XYXEx: int
-    XZXEx: int
+class EulerRot(enum.Enum):
+    ZYX = "ZYX"
+    ZXY = "ZXY"
+    YXZ = "YXZ"
+    YZX = "YZX"
+    XYZ = "XYZ"
+    XZY = "XZY"
+    ZYZ = "ZYZ"
+    ZXZ = "ZXZ"
+    YXY = "YXY"
+    YZY = "YZY"
+    XYX = "XYX"
+    XZX = "XZX"
+    ZYXEx = "ZYXEx"
+    ZXYEx = "ZXYEx"
+    YXZEx = "YXZEx"
+    YZXEx = "YZXEx"
+    XYZEx = "XYZEx"
+    XZYEx = "XZYEx"
+    ZYZEx = "ZYZEx"
+    ZXZEx = "ZXZEx"
+    YXYEx = "YXYEx"
+    YZYEx = "YZYEx"
+    XYXEx = "XYXEx"
+    XZXEx = "XZXEx"
 
 class Vec2:
     ZERO: Vec2

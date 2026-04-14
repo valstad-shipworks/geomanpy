@@ -143,6 +143,79 @@ macro_rules! impl_vec_constants {
 pub(crate) use impl_vec_constants;
 pub(crate) use impl_vec_unary;
 
+/// Implement serde methods (to_json, from_json, to_dict, from_dict, to_binary, from_binary,
+/// try_from_json, try_from_dict, try_from_binary) for a wrapper type whose inner type
+/// implements serde::Serialize + serde::Deserialize.
+macro_rules! impl_serde_methods {
+    ($py_type:ty, $inner:ty) => {
+        #[pymethods]
+        impl $py_type {
+            /// Serialize to a JSON string.
+            fn to_json(&self) -> pyo3::PyResult<String> {
+                serde_json::to_string(&self.0)
+                    .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+            }
+
+            /// Deserialize from a JSON string.
+            #[staticmethod]
+            fn from_json(json: &str) -> pyo3::PyResult<Self> {
+                let inner: $inner = serde_json::from_str(json)
+                    .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+                Ok(Self(inner))
+            }
+
+            /// Try to deserialize from a JSON string; returns None on failure.
+            #[staticmethod]
+            fn try_from_json(json: &str) -> Option<Self> {
+                serde_json::from_str::<$inner>(json).ok().map(Self)
+            }
+
+            /// Serialize to a Python dict.
+            fn to_dict<'py>(&self, py: pyo3::Python<'py>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyAny>> {
+                pythonize::pythonize(py, &self.0)
+                    .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+            }
+
+            /// Deserialize from a Python dict (or any compatible Python object).
+            #[staticmethod]
+            fn from_dict(obj: &pyo3::Bound<'_, pyo3::types::PyAny>) -> pyo3::PyResult<Self> {
+                let inner: $inner = pythonize::depythonize(obj)
+                    .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+                Ok(Self(inner))
+            }
+
+            /// Try to deserialize from a Python dict; returns None on failure.
+            #[staticmethod]
+            fn try_from_dict(obj: &pyo3::Bound<'_, pyo3::types::PyAny>) -> Option<Self> {
+                pythonize::depythonize::<$inner>(obj).ok().map(Self)
+            }
+
+            /// Serialize to binary (JSON bytes, deterministic).
+            fn to_binary<'py>(&self, py: pyo3::Python<'py>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyBytes>> {
+                let bytes = serde_json::to_vec(&self.0)
+                    .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+                Ok(pyo3::types::PyBytes::new(py, &bytes))
+            }
+
+            /// Deserialize from binary (JSON bytes).
+            #[staticmethod]
+            fn from_binary(data: &[u8]) -> pyo3::PyResult<Self> {
+                let inner: $inner = serde_json::from_slice(data)
+                    .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+                Ok(Self(inner))
+            }
+
+            /// Try to deserialize from binary; returns None on failure.
+            #[staticmethod]
+            fn try_from_binary(data: &[u8]) -> Option<Self> {
+                serde_json::from_slice::<$inner>(data).ok().map(Self)
+            }
+        }
+    };
+}
+
+pub(crate) use impl_serde_methods;
+
 #[inline]
 pub(crate) fn extract_numpy_vector<const N: usize>(
     array: PyReadonlyArray1<'_, f64>,

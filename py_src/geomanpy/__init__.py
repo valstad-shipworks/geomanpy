@@ -1,4 +1,4 @@
-from geomanpy._geomanpy import ( # type: ignore
+from geomanpy._geomanpy import (  # type: ignore
     EulerRot,
     Vec2,
     Vec3,
