@@ -11,7 +11,8 @@ repository = "https://github.com/valstad-shipworks/geomanpy"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = []
+default = ["not_build_only"]
+not_build_only = []
 
 [dependencies]
 approx = "0.5.1"
