@@ -1,8 +1,11 @@
+use crate::impl_dataclass_fields;
 use numpy::{PyArray2, PyReadonlyArray2};
 use pyo3::prelude::*;
 
-#[pyclass(name = "RawGeomUtil")]
+#[pyclass(frozen, name = "RawGeomUtil")]
 pub struct PyRawGeomUtil;
+
+impl_dataclass_fields!(PyRawGeomUtil, []);
 
 #[pymethods]
 impl PyRawGeomUtil {

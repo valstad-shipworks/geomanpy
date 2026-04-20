@@ -6,8 +6,10 @@ use super::{
     PyDMat3, PyDMat4, PyDQuat, PyDVec3, array2_from_rows, extract_numpy_matrix,
     impl_serde_methods, transpose_array2,
 };
+use crate::pickle::pickle_decode;
+use crate::{impl_dataclass_fields, impl_getnewargs_ex};
 
-#[pyclass(skip_from_py_object, name = "Affine3")]
+#[pyclass(frozen, skip_from_py_object, name = "Affine3")]
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
 pub struct PyDAffine3(pub(crate) DAffine3);
@@ -15,11 +17,12 @@ pub struct PyDAffine3(pub(crate) DAffine3);
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyDAffine3 {
     type Error = pyo3::PyErr;
     fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> pyo3::PyResult<Self> {
-        if let Ok(v) = ob.cast::<Self>() {
-            return Ok(v.borrow().clone());
+        if let Ok(v) = ob.cast_exact::<Self>() {
+            return Ok(v.get().clone());
         }
-        let mat3: PyDMat3 = ob.getattr("matrix3")?.extract()?;
-        let trans: PyDVec3 = ob.getattr("translation")?.extract()?;
+        let py = ob.py();
+        let mat3: PyDMat3 = ob.getattr(pyo3::intern!(py, "matrix3"))?.extract()?;
+        let trans: PyDVec3 = ob.getattr(pyo3::intern!(py, "translation"))?.extract()?;
         Ok(Self(DAffine3 {
             matrix3: mat3.0.into(),
             translation: trans.0,
@@ -44,9 +47,22 @@ impl From<PyDAffine3> for DAffine3 {
 #[pymethods]
 impl PyDAffine3 {
     #[new]
+    #[pyo3(signature = (translation=None, rotation=None, *, __pickle_state__=None))]
     #[inline]
-    fn new(matrix3: PyDMat3, translation: PyDVec3) -> Self {
-        Self(DAffine3::from_mat3_translation(matrix3.0, translation.0))
+    fn new(
+        translation: Option<PyDVec3>,
+        rotation: Option<PyDMat3>,
+        __pickle_state__: Option<Vec<u8>>,
+    ) -> PyResult<Self> {
+        if let Some(state) = __pickle_state__ {
+            return Ok(Self(pickle_decode::<DAffine3>(&state)?));
+        }
+        match (translation, rotation) {
+            (Some(t), Some(r)) => Ok(Self(DAffine3::from_mat3_translation(r.0, t.0))),
+            _ => Err(pyo3::exceptions::PyValueError::new_err(
+                "Affine3 requires translation and rotation arguments",
+            )),
+        }
     }
 
     #[staticmethod]
@@ -298,13 +314,6 @@ impl PyDAffine3 {
     fn __mul__(&self, other: Self) -> Self {
         Self(self.0 * other.0)
     }
-
-    fn __getstate__(&self) -> [f64; 12] {
-        self.0.to_cols_array()
-    }
-    fn __setstate__(&mut self, state: [f64; 12]) {
-        self.0 = DAffine3::from_cols_array(&state);
-    }
 }
 
 /// Additional helper methods ported from valstad geom.py.
@@ -338,3 +347,5 @@ impl PyDAffine3 {
 }
 
 impl_serde_methods!(PyDAffine3, DAffine3);
+impl_getnewargs_ex!(PyDAffine3);
+impl_dataclass_fields!(PyDAffine3, ["matrix3", "translation"]);

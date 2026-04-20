@@ -4,8 +4,10 @@ use pyo3::exceptions::PyIndexError;
 use pyo3::prelude::*;
 
 use super::{PyDVec3, extract_numpy_vector, impl_vec_constants, impl_vec_unary};
+use crate::pickle::pickle_decode;
+use crate::{impl_dataclass_fields, impl_getnewargs_ex};
 
-#[pyclass(skip_from_py_object, name = "Vec2")]
+#[pyclass(frozen, skip_from_py_object, name = "Vec2")]
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
 pub struct PyDVec2(pub(crate) DVec2);
@@ -13,7 +15,7 @@ pub struct PyDVec2(pub(crate) DVec2);
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyDVec2 {
     type Error = pyo3::PyErr;
     fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> pyo3::PyResult<Self> {
-        if let Ok(v) = ob.cast::<Self>() { return Ok(v.borrow().clone()); }
+        if let Ok(v) = ob.cast_exact::<Self>() { return Ok(v.get().clone()); }
         let x: f64 = ob.getattr("x")?.extract()?;
         let y: f64 = ob.getattr("y")?.extract()?;
         Ok(Self(DVec2::new(x, y)))
@@ -37,9 +39,13 @@ impl From<PyDVec2> for DVec2 {
 #[pymethods]
 impl PyDVec2 {
     #[new]
+    #[pyo3(signature = (x=0.0, y=0.0, *, __pickle_state__=None))]
     #[inline]
-    fn new(x: f64, y: f64) -> Self {
-        Self(DVec2::new(x, y))
+    fn new(x: f64, y: f64, __pickle_state__: Option<Vec<u8>>) -> PyResult<Self> {
+        if let Some(state) = __pickle_state__ {
+            return Ok(Self(pickle_decode::<DVec2>(&state)?));
+        }
+        Ok(Self(DVec2::new(x, y)))
     }
 
     #[staticmethod]
@@ -94,16 +100,6 @@ impl PyDVec2 {
     #[inline]
     fn y(&self) -> f64 {
         self.0.y
-    }
-    #[setter]
-    #[inline]
-    fn set_x(&mut self, v: f64) {
-        self.0.x = v;
-    }
-    #[setter]
-    #[inline]
-    fn set_y(&mut self, v: f64) {
-        self.0.y = v;
     }
     #[inline]
     fn with_x(&self, x: f64) -> Self {
@@ -405,16 +401,6 @@ impl PyDVec2 {
         }
     }
 
-    fn __setitem__(&mut self, idx: isize, val: f64) -> PyResult<()> {
-        let i = if idx < 0 { 2 + idx } else { idx };
-        match i {
-            0 => self.0.x = val,
-            1 => self.0.y = val,
-            _ => return Err(PyIndexError::new_err("index out of range")),
-        }
-        Ok(())
-    }
-
     fn __eq__(&self, other: Self) -> bool {
         self.0 == other.0
     }
@@ -516,63 +502,10 @@ impl PyDVec2 {
         }
     }
 
-    fn __iadd__(&mut self, other: &Bound<'_, PyAny>) -> PyResult<()> {
-        if let Ok(v) = other.extract::<Self>() {
-            self.0 += v.0;
-        } else if let Ok(s) = other.extract::<f64>() {
-            self.0 += s;
-        } else {
-            return Err(pyo3::exceptions::PyTypeError::new_err(
-                "unsupported operand type for +=",
-            ));
-        }
-        Ok(())
-    }
-    fn __isub__(&mut self, other: &Bound<'_, PyAny>) -> PyResult<()> {
-        if let Ok(v) = other.extract::<Self>() {
-            self.0 -= v.0;
-        } else if let Ok(s) = other.extract::<f64>() {
-            self.0 -= s;
-        } else {
-            return Err(pyo3::exceptions::PyTypeError::new_err(
-                "unsupported operand type for -=",
-            ));
-        }
-        Ok(())
-    }
-    fn __imul__(&mut self, other: &Bound<'_, PyAny>) -> PyResult<()> {
-        if let Ok(v) = other.extract::<Self>() {
-            self.0 *= v.0;
-        } else if let Ok(s) = other.extract::<f64>() {
-            self.0 *= s;
-        } else {
-            return Err(pyo3::exceptions::PyTypeError::new_err(
-                "unsupported operand type for *=",
-            ));
-        }
-        Ok(())
-    }
-    fn __itruediv__(&mut self, other: &Bound<'_, PyAny>) -> PyResult<()> {
-        if let Ok(v) = other.extract::<Self>() {
-            self.0 /= v.0;
-        } else if let Ok(s) = other.extract::<f64>() {
-            self.0 /= s;
-        } else {
-            return Err(pyo3::exceptions::PyTypeError::new_err(
-                "unsupported operand type for /=",
-            ));
-        }
-        Ok(())
-    }
-
-    fn __getstate__(&self) -> [f64; 2] {
-        self.0.to_array()
-    }
-    fn __setstate__(&mut self, state: [f64; 2]) {
-        self.0 = DVec2::from_array(state);
-    }
-
     fn __array__<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
         PyArray1::from_slice(py, &self.0.to_array())
     }
 }
+
+impl_getnewargs_ex!(PyDVec2);
+impl_dataclass_fields!(PyDVec2, ["x", "y"]);

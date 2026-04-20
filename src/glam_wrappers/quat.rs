@@ -3,8 +3,10 @@ use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::prelude::*;
 
 use super::{PyDAffine3, PyDMat3, PyDMat4, PyDVec2, PyDVec3, PyEulerRot, extract_numpy_vector, impl_serde_methods};
+use crate::pickle::pickle_decode;
+use crate::{impl_dataclass_fields, impl_getnewargs_ex};
 
-#[pyclass(skip_from_py_object, name = "Quat")]
+#[pyclass(frozen, skip_from_py_object, name = "Quat")]
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
 pub struct PyDQuat(pub(crate) DQuat);
@@ -12,13 +14,17 @@ pub struct PyDQuat(pub(crate) DQuat);
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyDQuat {
     type Error = pyo3::PyErr;
     fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> pyo3::PyResult<Self> {
-        if let Ok(v) = ob.cast::<Self>() {
-            return Ok(v.borrow().clone());
+        if let Ok(v) = ob.cast_exact::<Self>() {
+            return Ok(v.get().clone());
         }
-        let x: f64 = ob.getattr("x")?.extract()?;
-        let y: f64 = ob.getattr("y")?.extract()?;
-        let z: f64 = ob.getattr("z")?.extract()?;
-        let w: f64 = ob.getattr("w")?.extract()?;
+        if let Ok(xs) = ob.extract::<[f64; 4]>() {
+            return Ok(Self(DQuat::from_xyzw(xs[0], xs[1], xs[2], xs[3])));
+        }
+        let py = ob.py();
+        let x: f64 = ob.getattr(pyo3::intern!(py, "x"))?.extract()?;
+        let y: f64 = ob.getattr(pyo3::intern!(py, "y"))?.extract()?;
+        let z: f64 = ob.getattr(pyo3::intern!(py, "z"))?.extract()?;
+        let w: f64 = ob.getattr(pyo3::intern!(py, "w"))?.extract()?;
         Ok(Self(DQuat::from_xyzw(x, y, z, w)))
     }
 }
@@ -40,9 +46,13 @@ impl From<PyDQuat> for DQuat {
 #[pymethods]
 impl PyDQuat {
     #[new]
+    #[pyo3(signature = (x=0.0, y=0.0, z=0.0, w=1.0, *, __pickle_state__=None))]
     #[inline]
-    fn new(x: f64, y: f64, z: f64, w: f64) -> Self {
-        Self(DQuat::from_xyzw(x, y, z, w))
+    fn new(x: f64, y: f64, z: f64, w: f64, __pickle_state__: Option<Vec<u8>>) -> PyResult<Self> {
+        if let Some(state) = __pickle_state__ {
+            return Ok(Self(pickle_decode::<DQuat>(&state)?));
+        }
+        Ok(Self(DQuat::from_xyzw(x, y, z, w)))
     }
 
     #[staticmethod]
@@ -398,13 +408,8 @@ impl PyDQuat {
     fn __truediv__(&self, other: f64) -> Self {
         Self(self.0 / other)
     }
-
-    fn __getstate__(&self) -> [f64; 4] {
-        self.0.to_array()
-    }
-    fn __setstate__(&mut self, state: [f64; 4]) {
-        self.0 = DQuat::from_array(state);
-    }
 }
 
 impl_serde_methods!(PyDQuat, DQuat);
+impl_getnewargs_ex!(PyDQuat);
+impl_dataclass_fields!(PyDQuat, ["x", "y", "z", "w"]);

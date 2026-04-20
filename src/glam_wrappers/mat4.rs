@@ -7,8 +7,10 @@ use super::{
     PyDMat3, PyDQuat, PyDVec3, PyDVec4, PyEulerRot, array2_from_rows, extract_numpy_matrix,
     transpose_array2,
 };
+use crate::pickle::pickle_decode;
+use crate::{impl_dataclass_fields, impl_getnewargs_ex};
 
-#[pyclass(skip_from_py_object, name = "Mat4")]
+#[pyclass(frozen, skip_from_py_object, name = "Mat4")]
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
 pub struct PyDMat4(pub(crate) DMat4);
@@ -16,9 +18,18 @@ pub struct PyDMat4(pub(crate) DMat4);
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyDMat4 {
     type Error = pyo3::PyErr;
     fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> pyo3::PyResult<Self> {
-        if let Ok(v) = ob.cast::<Self>() { return Ok(v.borrow().clone()); }
-        let cols: ((f64,f64,f64,f64),(f64,f64,f64,f64),(f64,f64,f64,f64),(f64,f64,f64,f64)) =
-            ob.call_method0("to_cols_array_2d")?.extract()?;
+        if let Ok(v) = ob.cast_exact::<Self>() {
+            return Ok(v.get().clone());
+        }
+        let py = ob.py();
+        let cols: (
+            (f64, f64, f64, f64),
+            (f64, f64, f64, f64),
+            (f64, f64, f64, f64),
+            (f64, f64, f64, f64),
+        ) = ob
+            .call_method0(pyo3::intern!(py, "to_cols_array_2d"))?
+            .extract()?;
         Ok(Self(glam::DMat4::from_cols(
             glam::DVec4::new(cols.0.0, cols.0.1, cols.0.2, cols.0.3),
             glam::DVec4::new(cols.1.0, cols.1.1, cols.1.2, cols.1.3),
@@ -45,9 +56,26 @@ impl From<PyDMat4> for DMat4 {
 #[pymethods]
 impl PyDMat4 {
     #[new]
+    #[pyo3(signature = (x_axis=None, y_axis=None, z_axis=None, w_axis=None, *, __pickle_state__=None))]
     #[inline]
-    fn new(x_axis: PyDVec4, y_axis: PyDVec4, z_axis: PyDVec4, w_axis: PyDVec4) -> Self {
-        Self(DMat4::from_cols(x_axis.0, y_axis.0, z_axis.0, w_axis.0))
+    fn new(
+        x_axis: Option<PyDVec4>,
+        y_axis: Option<PyDVec4>,
+        z_axis: Option<PyDVec4>,
+        w_axis: Option<PyDVec4>,
+        __pickle_state__: Option<Vec<u8>>,
+    ) -> PyResult<Self> {
+        if let Some(state) = __pickle_state__ {
+            return Ok(Self(pickle_decode::<DMat4>(&state)?));
+        }
+        match (x_axis, y_axis, z_axis, w_axis) {
+            (Some(x), Some(y), Some(z), Some(w)) => {
+                Ok(Self(DMat4::from_cols(x.0, y.0, z.0, w.0)))
+            }
+            _ => Err(pyo3::exceptions::PyValueError::new_err(
+                "Mat4 requires x_axis, y_axis, z_axis, w_axis arguments",
+            )),
+        }
     }
 
     #[staticmethod]
@@ -558,14 +586,10 @@ impl PyDMat4 {
         Self(self.0 / other)
     }
 
-    fn __getstate__(&self) -> [f64; 16] {
-        self.0.to_cols_array()
-    }
-    fn __setstate__(&mut self, state: [f64; 16]) {
-        self.0 = DMat4::from_cols_array(&state);
-    }
-
     fn __array__<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
         self.to_numpy(py)
     }
 }
+
+impl_getnewargs_ex!(PyDMat4);
+impl_dataclass_fields!(PyDMat4, ["x_axis", "y_axis", "z_axis", "w_axis"]);

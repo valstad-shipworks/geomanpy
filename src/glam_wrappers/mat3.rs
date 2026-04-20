@@ -7,8 +7,10 @@ use super::{
     PyDMat4, PyDQuat, PyDVec2, PyDVec3, PyEulerRot, array2_from_rows, extract_numpy_matrix,
     impl_serde_methods, transpose_array2,
 };
+use crate::pickle::pickle_decode;
+use crate::{impl_dataclass_fields, impl_getnewargs_ex};
 
-#[pyclass(skip_from_py_object, name = "Mat3")]
+#[pyclass(frozen, skip_from_py_object, name = "Mat3")]
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
 pub struct PyDMat3(pub(crate) DMat3);
@@ -16,12 +18,14 @@ pub struct PyDMat3(pub(crate) DMat3);
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyDMat3 {
     type Error = pyo3::PyErr;
     fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> pyo3::PyResult<Self> {
-        if let Ok(v) = ob.cast::<Self>() {
-            return Ok(v.borrow().clone());
+        if let Ok(v) = ob.cast_exact::<Self>() {
+            return Ok(v.get().clone());
         }
         // Extract via to_cols_array_2d -> ((r00,r01,r02),(r10,r11,r12),(r20,r21,r22))
-        let cols: ((f64,f64,f64),(f64,f64,f64),(f64,f64,f64)) =
-            ob.call_method0("to_cols_array_2d")?.extract()?;
+        let py = ob.py();
+        let cols: ((f64, f64, f64), (f64, f64, f64), (f64, f64, f64)) = ob
+            .call_method0(pyo3::intern!(py, "to_cols_array_2d"))?
+            .extract()?;
         Ok(Self(DMat3::from_cols(
             glam::DVec3::new(cols.0.0, cols.0.1, cols.0.2),
             glam::DVec3::new(cols.1.0, cols.1.1, cols.1.2),
@@ -47,9 +51,23 @@ impl From<PyDMat3> for DMat3 {
 #[pymethods]
 impl PyDMat3 {
     #[new]
+    #[pyo3(signature = (x_axis=None, y_axis=None, z_axis=None, *, __pickle_state__=None))]
     #[inline]
-    fn new(x_axis: PyDVec3, y_axis: PyDVec3, z_axis: PyDVec3) -> Self {
-        Self(DMat3::from_cols(x_axis.0, y_axis.0, z_axis.0))
+    fn new(
+        x_axis: Option<PyDVec3>,
+        y_axis: Option<PyDVec3>,
+        z_axis: Option<PyDVec3>,
+        __pickle_state__: Option<Vec<u8>>,
+    ) -> PyResult<Self> {
+        if let Some(state) = __pickle_state__ {
+            return Ok(Self(pickle_decode::<DMat3>(&state)?));
+        }
+        match (x_axis, y_axis, z_axis) {
+            (Some(x), Some(y), Some(z)) => Ok(Self(DMat3::from_cols(x.0, y.0, z.0))),
+            _ => Err(pyo3::exceptions::PyValueError::new_err(
+                "Mat3 requires x_axis, y_axis, z_axis arguments",
+            )),
+        }
     }
 
     #[staticmethod]
@@ -423,16 +441,11 @@ impl PyDMat3 {
         Self(self.0 / other)
     }
 
-    fn __getstate__(&self) -> [f64; 9] {
-        self.0.to_cols_array()
-    }
-    fn __setstate__(&mut self, state: [f64; 9]) {
-        self.0 = DMat3::from_cols_array(&state);
-    }
-
     fn __array__<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
         self.to_numpy(py)
     }
 }
 
 impl_serde_methods!(PyDMat3, DMat3);
+impl_getnewargs_ex!(PyDMat3);
+impl_dataclass_fields!(PyDMat3, ["x_axis", "y_axis", "z_axis"]);

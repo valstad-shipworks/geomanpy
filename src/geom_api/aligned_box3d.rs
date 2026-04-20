@@ -1,9 +1,13 @@
 use crate::glam_wrappers::{PyDAffine3, PyDVec3};
+use crate::impl_dataclass_fields;
+use crate::pickle::{make_getnewargs_ex, pickle_decode};
 use crate::wreck_wrappers::PyCuboid;
 use glam::DVec3;
+use pyo3::Bound;
 use pyo3::prelude::*;
+use pyo3::types::{PyDict, PyTuple};
 
-#[pyclass(from_py_object, name = "AlignedBox3d")]
+#[pyclass(frozen, from_py_object, name = "AlignedBox3d")]
 #[derive(Debug, Clone, Copy)]
 pub struct PyAlignedBox3d {
     pub(crate) min: DVec3,
@@ -13,10 +17,21 @@ pub struct PyAlignedBox3d {
 #[pymethods]
 impl PyAlignedBox3d {
     #[new]
-    fn new(min: PyDVec3, max: PyDVec3) -> Self {
-        Self {
-            min: min.0,
-            max: max.0,
+    #[pyo3(signature = (min=None, max=None, *, __pickle_state__=None))]
+    fn new(
+        min: Option<PyDVec3>,
+        max: Option<PyDVec3>,
+        __pickle_state__: Option<Vec<u8>>,
+    ) -> PyResult<Self> {
+        if let Some(state) = __pickle_state__ {
+            let (min, max): (DVec3, DVec3) = pickle_decode(&state)?;
+            return Ok(Self { min, max });
+        }
+        match (min, max) {
+            (Some(min), Some(max)) => Ok(Self { min: min.0, max: max.0 }),
+            _ => Err(pyo3::exceptions::PyValueError::new_err(
+                "AlignedBox3d requires min and max arguments",
+            )),
         }
     }
 
@@ -122,4 +137,13 @@ impl PyAlignedBox3d {
             self.min.x, self.min.y, self.min.z, self.max.x, self.max.y, self.max.z
         )
     }
+
+    fn __getnewargs_ex__<'py>(
+        &self,
+        py: Python<'py>,
+    ) -> PyResult<(Bound<'py, PyTuple>, Bound<'py, PyDict>)> {
+        make_getnewargs_ex(py, &(self.min, self.max))
+    }
 }
+
+impl_dataclass_fields!(PyAlignedBox3d, ["min", "max"]);

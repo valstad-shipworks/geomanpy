@@ -1,7 +1,11 @@
 #[cfg(feature = "not_build_only")]
+pub mod dataclass;
+#[cfg(feature = "not_build_only")]
 pub mod geom_api;
 #[cfg(feature = "not_build_only")]
 pub mod glam_wrappers;
+#[cfg(feature = "not_build_only")]
+pub mod pickle;
 #[cfg(feature = "not_build_only")]
 pub mod wreck_wrappers;
 

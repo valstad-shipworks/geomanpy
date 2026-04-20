@@ -4,8 +4,10 @@ use pyo3::exceptions::PyIndexError;
 use pyo3::prelude::*;
 
 use super::{PyDVec3, extract_numpy_vector, impl_vec_constants, impl_vec_unary};
+use crate::pickle::pickle_decode;
+use crate::{impl_dataclass_fields, impl_getnewargs_ex};
 
-#[pyclass(skip_from_py_object, name = "Vec4")]
+#[pyclass(frozen, skip_from_py_object, name = "Vec4")]
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
 pub struct PyDVec4(pub(crate) DVec4);
@@ -13,11 +15,18 @@ pub struct PyDVec4(pub(crate) DVec4);
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyDVec4 {
     type Error = pyo3::PyErr;
     fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> pyo3::PyResult<Self> {
-        if let Ok(v) = ob.cast::<Self>() { return Ok(v.borrow().clone()); }
-        let x: f64 = ob.getattr("x")?.extract()?;
-        let y: f64 = ob.getattr("y")?.extract()?;
-        let z: f64 = ob.getattr("z")?.extract()?;
-        let w: f64 = ob.getattr("w")?.extract()?;
+        if let Ok(v) = ob.cast_exact::<Self>() {
+            return Ok(v.get().clone());
+        }
+        // 4-element sequence (list, tuple, numpy ndarray) — ArrayLike input.
+        if let Ok(xs) = ob.extract::<[f64; 4]>() {
+            return Ok(Self(DVec4::new(xs[0], xs[1], xs[2], xs[3])));
+        }
+        let py = ob.py();
+        let x: f64 = ob.getattr(pyo3::intern!(py, "x"))?.extract()?;
+        let y: f64 = ob.getattr(pyo3::intern!(py, "y"))?.extract()?;
+        let z: f64 = ob.getattr(pyo3::intern!(py, "z"))?.extract()?;
+        let w: f64 = ob.getattr(pyo3::intern!(py, "w"))?.extract()?;
         Ok(Self(DVec4::new(x, y, z, w)))
     }
 }
@@ -39,9 +48,13 @@ impl From<PyDVec4> for DVec4 {
 #[pymethods]
 impl PyDVec4 {
     #[new]
+    #[pyo3(signature = (x=0.0, y=0.0, z=0.0, w=0.0, *, __pickle_state__=None))]
     #[inline]
-    fn new(x: f64, y: f64, z: f64, w: f64) -> Self {
-        Self(DVec4::new(x, y, z, w))
+    fn new(x: f64, y: f64, z: f64, w: f64, __pickle_state__: Option<Vec<u8>>) -> PyResult<Self> {
+        if let Some(state) = __pickle_state__ {
+            return Ok(Self(pickle_decode::<DVec4>(&state)?));
+        }
+        Ok(Self(DVec4::new(x, y, z, w)))
     }
 
     #[staticmethod]
@@ -106,26 +119,6 @@ impl PyDVec4 {
     #[inline]
     fn w(&self) -> f64 {
         self.0.w
-    }
-    #[setter]
-    #[inline]
-    fn set_x(&mut self, v: f64) {
-        self.0.x = v;
-    }
-    #[setter]
-    #[inline]
-    fn set_y(&mut self, v: f64) {
-        self.0.y = v;
-    }
-    #[setter]
-    #[inline]
-    fn set_z(&mut self, v: f64) {
-        self.0.z = v;
-    }
-    #[setter]
-    #[inline]
-    fn set_w(&mut self, v: f64) {
-        self.0.w = v;
     }
     #[inline]
     fn with_x(&self, x: f64) -> Self {
@@ -420,18 +413,6 @@ impl PyDVec4 {
         }
     }
 
-    fn __setitem__(&mut self, idx: isize, val: f64) -> PyResult<()> {
-        let i = if idx < 0 { 4 + idx } else { idx };
-        match i {
-            0 => self.0.x = val,
-            1 => self.0.y = val,
-            2 => self.0.z = val,
-            3 => self.0.w = val,
-            _ => return Err(PyIndexError::new_err("index out of range")),
-        }
-        Ok(())
-    }
-
     fn __eq__(&self, other: Self) -> bool {
         self.0 == other.0
     }
@@ -533,63 +514,10 @@ impl PyDVec4 {
         }
     }
 
-    fn __iadd__(&mut self, other: &Bound<'_, PyAny>) -> PyResult<()> {
-        if let Ok(v) = other.extract::<Self>() {
-            self.0 += v.0;
-        } else if let Ok(s) = other.extract::<f64>() {
-            self.0 += s;
-        } else {
-            return Err(pyo3::exceptions::PyTypeError::new_err(
-                "unsupported operand type for +=",
-            ));
-        }
-        Ok(())
-    }
-    fn __isub__(&mut self, other: &Bound<'_, PyAny>) -> PyResult<()> {
-        if let Ok(v) = other.extract::<Self>() {
-            self.0 -= v.0;
-        } else if let Ok(s) = other.extract::<f64>() {
-            self.0 -= s;
-        } else {
-            return Err(pyo3::exceptions::PyTypeError::new_err(
-                "unsupported operand type for -=",
-            ));
-        }
-        Ok(())
-    }
-    fn __imul__(&mut self, other: &Bound<'_, PyAny>) -> PyResult<()> {
-        if let Ok(v) = other.extract::<Self>() {
-            self.0 *= v.0;
-        } else if let Ok(s) = other.extract::<f64>() {
-            self.0 *= s;
-        } else {
-            return Err(pyo3::exceptions::PyTypeError::new_err(
-                "unsupported operand type for *=",
-            ));
-        }
-        Ok(())
-    }
-    fn __itruediv__(&mut self, other: &Bound<'_, PyAny>) -> PyResult<()> {
-        if let Ok(v) = other.extract::<Self>() {
-            self.0 /= v.0;
-        } else if let Ok(s) = other.extract::<f64>() {
-            self.0 /= s;
-        } else {
-            return Err(pyo3::exceptions::PyTypeError::new_err(
-                "unsupported operand type for /=",
-            ));
-        }
-        Ok(())
-    }
-
-    fn __getstate__(&self) -> [f64; 4] {
-        self.0.to_array()
-    }
-    fn __setstate__(&mut self, state: [f64; 4]) {
-        self.0 = DVec4::from_array(state);
-    }
-
     fn __array__<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
         PyArray1::from_slice(py, &self.0.to_array())
     }
 }
+
+impl_getnewargs_ex!(PyDVec4);
+impl_dataclass_fields!(PyDVec4, ["x", "y", "z", "w"]);

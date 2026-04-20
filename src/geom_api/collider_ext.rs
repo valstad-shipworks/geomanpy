@@ -1,9 +1,69 @@
+use crate::geom_api::trimesh_convert::trimesh_to_convex_polytope;
 use crate::glam_wrappers::PyDAffine3;
 use crate::wreck_wrappers::{
     PyCollider, PyConvexPolytope, PyCuboid, PyCylinder, PyPointcloud, PyShape, PySphere,
 };
 use pyo3::prelude::*;
 use wreck::Transformable;
+
+/// Push a PyShape into a Collider. Centralises the match across variants.
+fn push_shape(out: &mut wreck::Collider<wreck::Pointcloud>, shape: PyShape) {
+    match shape {
+        PyShape::Sphere(s) => out.add(s.0),
+        PyShape::Capsule(c) => out.add(c.0),
+        PyShape::Cuboid(c) => out.add(c.0),
+        PyShape::Cylinder(c) => out.add(c.0),
+        PyShape::ConvexPolytope(p) => out.add(p.0),
+        PyShape::ConvexPolygon(p) => out.add(p.0),
+        PyShape::Line(l) => out.add(l.0),
+        PyShape::Ray(r) => out.add(r.0),
+        PyShape::LineSegment(s) => out.add(s.0),
+        PyShape::Plane(p) => out.add(p.0),
+        PyShape::Pointcloud(p) => out.add(p.0),
+    }
+}
+
+/// Quack-typed check: does this look like a trimesh.Trimesh?
+fn looks_like_trimesh(obj: &Bound<'_, PyAny>) -> bool {
+    obj.hasattr("face_normals").unwrap_or(false)
+        && obj.hasattr("vertices").unwrap_or(false)
+        && obj.hasattr("faces").unwrap_or(false)
+}
+
+/// Try to extract a single obstacle (shape or trimesh) and push it into
+/// the collider. Returns Ok(true) on success, Ok(false) if the object was
+/// not a recognised obstacle, Err on conversion failure.
+fn try_push_obstacle(
+    out: &mut wreck::Collider<wreck::Pointcloud>,
+    obj: &Bound<'_, PyAny>,
+) -> PyResult<bool> {
+    if let Ok(s) = obj.extract::<PySphere>() {
+        out.add(s.0);
+        return Ok(true);
+    }
+    if let Ok(c) = obj.extract::<PyCuboid>() {
+        out.add(c.0);
+        return Ok(true);
+    }
+    if let Ok(c) = obj.extract::<PyCylinder>() {
+        out.add(c.0);
+        return Ok(true);
+    }
+    if let Ok(p) = obj.extract::<PyPointcloud>() {
+        out.add(p.0);
+        return Ok(true);
+    }
+    if let Ok(shape) = obj.extract::<PyShape>() {
+        push_shape(out, shape);
+        return Ok(true);
+    }
+    if looks_like_trimesh(obj) {
+        let poly = trimesh_to_convex_polytope(obj)?;
+        out.add(poly.0);
+        return Ok(true);
+    }
+    Ok(false)
+}
 
 #[pymethods]
 impl PyCollider {
@@ -20,43 +80,33 @@ impl PyCollider {
         Self(out)
     }
 
-    /// Add a single obstacle and return a new Collider.
+    /// Add one or more obstacles and return a new Collider.
+    ///
+    /// Accepts a single Shape/Sphere/Cuboid/Cylinder/Pointcloud, a
+    /// ``trimesh.Trimesh`` (auto-converted to a ConvexPolytope), or a
+    /// list/tuple of any of the above. ``None`` is a no-op.
     fn new_with_any(&self, obstacle: &Bound<'_, PyAny>) -> PyResult<Self> {
         let mut out = self.0.clone();
-        if let Ok(s) = obstacle.extract::<PySphere>() {
-            out.add(s.0);
+        if obstacle.is_none() {
             return Ok(Self(out));
         }
-        if let Ok(c) = obstacle.extract::<PyCuboid>() {
-            out.add(c.0);
+        if try_push_obstacle(&mut out, obstacle)? {
             return Ok(Self(out));
         }
-        if let Ok(c) = obstacle.extract::<PyCylinder>() {
-            out.add(c.0);
-            return Ok(Self(out));
-        }
-        if let Ok(p) = obstacle.extract::<PyPointcloud>() {
-            out.add(p.0);
-            return Ok(Self(out));
-        }
-        if let Ok(shape) = obstacle.extract::<PyShape>() {
-            match shape {
-                PyShape::Sphere(s) => out.add(s.0),
-                PyShape::Capsule(c) => out.add(c.0),
-                PyShape::Cuboid(c) => out.add(c.0),
-                PyShape::Cylinder(c) => out.add(c.0),
-                PyShape::ConvexPolytope(p) => out.add(p.0),
-                PyShape::ConvexPolygon(p) => out.add(p.0),
-                PyShape::Line(l) => out.add(l.0),
-                PyShape::Ray(r) => out.add(r.0),
-                PyShape::LineSegment(s) => out.add(s.0),
-                PyShape::Plane(p) => out.add(p.0),
-                PyShape::Pointcloud(p) => out.add(p.0),
+        // Not a single obstacle — try iterating (list, tuple, any sequence).
+        if let Ok(iter) = obstacle.try_iter() {
+            for item in iter {
+                let item = item?;
+                if !try_push_obstacle(&mut out, &item)? {
+                    return Err(pyo3::exceptions::PyTypeError::new_err(
+                        "sequence contained an item that is not a Shape, primitive, or trimesh.Trimesh",
+                    ));
+                }
             }
             return Ok(Self(out));
         }
         Err(pyo3::exceptions::PyTypeError::new_err(
-            "expected a Shape, Sphere, Cuboid, Cylinder, or Pointcloud",
+            "expected a Shape, Sphere, Cuboid, Cylinder, Pointcloud, trimesh.Trimesh, or a sequence of these",
         ))
     }
 
@@ -126,49 +176,12 @@ impl PyCollider {
             + self.0.pointclouds().len()
     }
 
-    /// Create a Collider from a single obstacle or list of obstacles.
+    /// Create a Collider from a single obstacle, list of obstacles, or None.
+    ///
+    /// Accepts the same inputs as ``new_with_any``, plus ``None`` → empty.
     #[classmethod]
     fn from_any(_cls: &Bound<'_, pyo3::types::PyType>, obstacles: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let mut out = wreck::Collider::new();
-        if obstacles.is_none() {
-            return Ok(Self(out));
-        }
-        if let Ok(shapes) = obstacles.extract::<Vec<PyShape>>() {
-            for shape in shapes {
-                match shape {
-                    PyShape::Sphere(s) => out.add(s.0),
-                    PyShape::Capsule(c) => out.add(c.0),
-                    PyShape::Cuboid(c) => out.add(c.0),
-                    PyShape::Cylinder(c) => out.add(c.0),
-                    PyShape::ConvexPolytope(p) => out.add(p.0),
-                    PyShape::ConvexPolygon(p) => out.add(p.0),
-                    PyShape::Line(l) => out.add(l.0),
-                    PyShape::Ray(r) => out.add(r.0),
-                    PyShape::LineSegment(s) => out.add(s.0),
-                    PyShape::Plane(p) => out.add(p.0),
-                    PyShape::Pointcloud(p) => out.add(p.0),
-                }
-            }
-            return Ok(Self(out));
-        }
-        if let Ok(shape) = obstacles.extract::<PyShape>() {
-            match shape {
-                PyShape::Sphere(s) => out.add(s.0),
-                PyShape::Capsule(c) => out.add(c.0),
-                PyShape::Cuboid(c) => out.add(c.0),
-                PyShape::Cylinder(c) => out.add(c.0),
-                PyShape::ConvexPolytope(p) => out.add(p.0),
-                PyShape::ConvexPolygon(p) => out.add(p.0),
-                PyShape::Line(l) => out.add(l.0),
-                PyShape::Ray(r) => out.add(r.0),
-                PyShape::LineSegment(s) => out.add(s.0),
-                PyShape::Plane(p) => out.add(p.0),
-                PyShape::Pointcloud(p) => out.add(p.0),
-            }
-            return Ok(Self(out));
-        }
-        Err(pyo3::exceptions::PyTypeError::new_err(
-            "expected a Shape, list of Shapes, or None",
-        ))
+        let empty = Self(wreck::Collider::new());
+        empty.new_with_any(obstacles)
     }
 }

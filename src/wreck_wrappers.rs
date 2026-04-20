@@ -14,6 +14,8 @@ use wreck::{
 };
 
 use crate::glam_wrappers::{PyDAffine3, PyDMat3, PyDQuat, PyDVec3};
+use crate::pickle::pickle_decode;
+use crate::{impl_dataclass_fields, impl_getnewargs_ex};
 
 #[inline]
 fn dv3(v: PyDVec3) -> Vec3 {
@@ -29,47 +31,47 @@ fn v3d(v: Vec3) -> PyDVec3 {
 #[derive(Debug, Clone)]
 pub struct PyCollider(pub(crate) Collider<Pointcloud>);
 
-#[pyclass(from_py_object, name = "Pointcloud")]
+#[pyclass(frozen, from_py_object, name = "Pointcloud")]
 #[derive(Debug, Clone)]
 pub struct PyPointcloud(pub(crate) Pointcloud);
 
-#[pyclass(skip_from_py_object, name = "Sphere")]
+#[pyclass(frozen, skip_from_py_object, name = "Sphere")]
 #[derive(Debug, Clone, Copy)]
 pub struct PySphere(pub(crate) Sphere);
 
-#[pyclass(skip_from_py_object, name = "Capsule")]
+#[pyclass(frozen, skip_from_py_object, name = "Capsule")]
 #[derive(Debug, Clone, Copy)]
 pub struct PyCapsule(pub(crate) Capsule);
 
-#[pyclass(skip_from_py_object, name = "Cuboid")]
+#[pyclass(frozen, skip_from_py_object, name = "Cuboid")]
 #[derive(Debug, Clone, Copy)]
 pub struct PyCuboid(pub(crate) Cuboid);
 
-#[pyclass(skip_from_py_object, name = "Cylinder")]
+#[pyclass(frozen, skip_from_py_object, name = "Cylinder")]
 #[derive(Debug, Clone, Copy)]
 pub struct PyCylinder(pub(crate) Cylinder);
 
-#[pyclass(from_py_object, name = "ConvexPolytope")]
+#[pyclass(frozen, from_py_object, name = "ConvexPolytope")]
 #[derive(Debug, Clone)]
 pub struct PyConvexPolytope(pub(crate) ConvexPolytope);
 
-#[pyclass(from_py_object, name = "ConvexPolygon")]
+#[pyclass(frozen, from_py_object, name = "ConvexPolygon")]
 #[derive(Debug, Clone)]
 pub struct PyConvexPolygon(pub(crate) ConvexPolygon);
 
-#[pyclass(from_py_object, name = "Line")]
+#[pyclass(frozen, from_py_object, name = "Line")]
 #[derive(Debug, Clone, Copy)]
 pub struct PyLine(pub(crate) Line);
 
-#[pyclass(from_py_object, name = "Ray")]
+#[pyclass(frozen, from_py_object, name = "Ray")]
 #[derive(Debug, Clone, Copy)]
 pub struct PyRay(pub(crate) Ray);
 
-#[pyclass(from_py_object, name = "LineSegment")]
+#[pyclass(frozen, from_py_object, name = "LineSegment")]
 #[derive(Debug, Clone, Copy)]
 pub struct PyLineSegment(pub(crate) LineSegment);
 
-#[pyclass(from_py_object, name = "Plane")]
+#[pyclass(frozen, from_py_object, name = "Plane")]
 #[derive(Debug, Clone, Copy)]
 pub struct PyPlane(pub(crate) Plane);
 
@@ -82,18 +84,26 @@ pub struct PySphereCollection(pub(crate) SpheresSoA);
 // so that types created in one pyo3 extension module can be passed to another.
 
 fn extract_f32_vec3(ob: &pyo3::Bound<'_, pyo3::PyAny>) -> PyResult<Vec3> {
-    let x: f64 = ob.getattr("x")?.extract()?;
-    let y: f64 = ob.getattr("y")?.extract()?;
-    let z: f64 = ob.getattr("z")?.extract()?;
+    // Fast path: 3-element sequence (tuple/list/ndarray).
+    if let Ok(xs) = ob.extract::<[f64; 3]>() {
+        return Ok(Vec3::new(xs[0] as f32, xs[1] as f32, xs[2] as f32));
+    }
+    let py = ob.py();
+    let x: f64 = ob.getattr(pyo3::intern!(py, "x"))?.extract()?;
+    let y: f64 = ob.getattr(pyo3::intern!(py, "y"))?.extract()?;
+    let z: f64 = ob.getattr(pyo3::intern!(py, "z"))?.extract()?;
     Ok(Vec3::new(x as f32, y as f32, z as f32))
 }
 
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PySphere {
     type Error = pyo3::PyErr;
     fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
-        if let Ok(v) = ob.cast::<Self>() { return Ok(v.borrow().clone()); }
-        let center = extract_f32_vec3(&ob.getattr("center")?)?;
-        let radius: f32 = ob.getattr("radius")?.extract()?;
+        if let Ok(v) = ob.cast_exact::<Self>() {
+            return Ok(*v.get());
+        }
+        let py = ob.py();
+        let center = extract_f32_vec3(&ob.getattr(pyo3::intern!(py, "center"))?)?;
+        let radius: f32 = ob.getattr(pyo3::intern!(py, "radius"))?.extract()?;
         Ok(Self(Sphere::new(center, radius)))
     }
 }
@@ -101,10 +111,14 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PySphere {
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyCuboid {
     type Error = pyo3::PyErr;
     fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
-        if let Ok(v) = ob.cast::<Self>() { return Ok(v.borrow().clone()); }
-        let center = extract_f32_vec3(&ob.getattr("center")?)?;
-        let he: (f32, f32, f32) = ob.getattr("half_extents")?.extract()?;
-        let axes: ((f32,f32,f32),(f32,f32,f32),(f32,f32,f32)) = ob.getattr("axes")?.extract()?;
+        if let Ok(v) = ob.cast_exact::<Self>() {
+            return Ok(*v.get());
+        }
+        let py = ob.py();
+        let center = extract_f32_vec3(&ob.getattr(pyo3::intern!(py, "center"))?)?;
+        let he: (f32, f32, f32) = ob.getattr(pyo3::intern!(py, "half_extents"))?.extract()?;
+        let axes: ((f32, f32, f32), (f32, f32, f32), (f32, f32, f32)) =
+            ob.getattr(pyo3::intern!(py, "axes"))?.extract()?;
         Ok(Self(Cuboid::new(
             center,
             [
@@ -120,10 +134,13 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyCuboid {
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyCylinder {
     type Error = pyo3::PyErr;
     fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
-        if let Ok(v) = ob.cast::<Self>() { return Ok(v.borrow().clone()); }
-        let p1 = extract_f32_vec3(&ob.getattr("p1")?)?;
-        let p2 = extract_f32_vec3(&ob.getattr("p2")?)?;
-        let radius: f32 = ob.getattr("radius")?.extract()?;
+        if let Ok(v) = ob.cast_exact::<Self>() {
+            return Ok(*v.get());
+        }
+        let py = ob.py();
+        let p1 = extract_f32_vec3(&ob.getattr(pyo3::intern!(py, "p1"))?)?;
+        let p2 = extract_f32_vec3(&ob.getattr(pyo3::intern!(py, "p2"))?)?;
+        let radius: f32 = ob.getattr(pyo3::intern!(py, "radius"))?.extract()?;
         Ok(Self(Cylinder::new(p1, p2, radius)))
     }
 }
@@ -131,32 +148,97 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyCylinder {
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyCapsule {
     type Error = pyo3::PyErr;
     fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
-        if let Ok(v) = ob.cast::<Self>() { return Ok(v.borrow().clone()); }
-        let p1 = extract_f32_vec3(&ob.getattr("p1")?)?;
-        let p2 = extract_f32_vec3(&ob.getattr("p2")?)?;
-        let radius: f32 = ob.getattr("radius")?.extract()?;
+        if let Ok(v) = ob.cast_exact::<Self>() {
+            return Ok(*v.get());
+        }
+        let py = ob.py();
+        let p1 = extract_f32_vec3(&ob.getattr(pyo3::intern!(py, "p1"))?)?;
+        let p2 = extract_f32_vec3(&ob.getattr(pyo3::intern!(py, "p2"))?)?;
+        let radius: f32 = ob.getattr(pyo3::intern!(py, "radius"))?.extract()?;
         Ok(Self(Capsule::new(p1, p2, radius)))
+    }
+}
+
+fn push_shape_into(collider: &mut Collider<Pointcloud>, shape: PyShape) {
+    match shape {
+        PyShape::Sphere(s) => collider.add(s.0),
+        PyShape::Capsule(c) => collider.add(c.0),
+        PyShape::Cuboid(c) => collider.add(c.0),
+        PyShape::Cylinder(c) => collider.add(c.0),
+        PyShape::ConvexPolytope(p) => collider.add(p.0),
+        PyShape::ConvexPolygon(p) => collider.add(p.0),
+        PyShape::Line(l) => collider.add(l.0),
+        PyShape::Ray(r) => collider.add(r.0),
+        PyShape::LineSegment(s) => collider.add(s.0),
+        PyShape::Plane(p) => collider.add(p.0),
+        PyShape::Pointcloud(p) => collider.add(p.0),
     }
 }
 
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyCollider {
     type Error = pyo3::PyErr;
     fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
-        if let Ok(v) = ob.cast::<Self>() { return Ok(v.borrow().clone()); }
-        // Rebuild collider from individual shape collections
+        // PyCollider is not `frozen` (it's a builder), so we borrow rather than
+        // using `.get()`. cast_exact still avoids walking the MRO.
+        if let Ok(v) = ob.cast_exact::<Self>() {
+            return Ok(v.borrow().clone());
+        }
+        if ob.is_none() {
+            return Ok(Self(Collider::<Pointcloud>::default()));
+        }
         let mut collider = Collider::<Pointcloud>::default();
-        // Spheres
-        let spheres: Vec<PySphere> = ob.call_method0("cuboids")?.extract().unwrap_or_default();
-        for s in spheres { collider.add(s.0); }
-        // Cuboids
-        let cuboids: Vec<PyCuboid> = ob.call_method0("cuboids")?.extract().unwrap_or_default();
-        for b in cuboids { collider.add(b.0); }
-        // Cylinders
-        let cylinders: Vec<PyCylinder> = ob.call_method0("cylinders")?.extract().unwrap_or_default();
-        for c in cylinders { collider.add(c.0); }
-        // Capsules
-        let capsules: Vec<PyCapsule> = ob.call_method0("capsules")?.extract().unwrap_or_default();
-        for c in capsules { collider.add(c.0); }
+        // Single shape
+        if let Ok(shape) = ob.extract::<PyShape>() {
+            push_shape_into(&mut collider, shape);
+            return Ok(Self(collider));
+        }
+        // Sequence of shapes (list, tuple, or any iterable)
+        if let Ok(iter) = ob.try_iter() {
+            let mut any = false;
+            for item in iter {
+                let item = item?;
+                let shape: PyShape = item.extract().map_err(|_| {
+                    pyo3::exceptions::PyTypeError::new_err(
+                        "PyCollider: sequence item is not a Shape",
+                    )
+                })?;
+                push_shape_into(&mut collider, shape);
+                any = true;
+            }
+            if any {
+                return Ok(Self(collider));
+            }
+        }
+        // Legacy duck-typed path: object exposing spheres/cuboids/cylinders/capsules.
+        let py = ob.py();
+        let spheres: Vec<PySphere> = ob
+            .call_method0(pyo3::intern!(py, "spheres"))
+            .and_then(|v| v.extract())
+            .unwrap_or_default();
+        for s in spheres {
+            collider.add(s.0);
+        }
+        let cuboids: Vec<PyCuboid> = ob
+            .call_method0(pyo3::intern!(py, "cuboids"))
+            .and_then(|v| v.extract())
+            .unwrap_or_default();
+        for b in cuboids {
+            collider.add(b.0);
+        }
+        let cylinders: Vec<PyCylinder> = ob
+            .call_method0(pyo3::intern!(py, "cylinders"))
+            .and_then(|v| v.extract())
+            .unwrap_or_default();
+        for c in cylinders {
+            collider.add(c.0);
+        }
+        let capsules: Vec<PyCapsule> = ob
+            .call_method0(pyo3::intern!(py, "capsules"))
+            .and_then(|v| v.extract())
+            .unwrap_or_default();
+        for c in capsules {
+            collider.add(c.0);
+        }
         Ok(Self(collider))
     }
 }
@@ -199,7 +281,7 @@ impl_from_wreck!(PyPointcloud, Pointcloud);
 impl_from_wreck!(PySphereCollection, SpheresSoA);
 impl_from_wreck!(PyCollider, Collider<Pointcloud>);
 
-#[pyclass(skip_from_py_object, name = "Shape")]
+#[pyclass(frozen, skip_from_py_object, name = "Shape")]
 #[derive(Debug, Clone)]
 pub enum PyShape {
     Sphere(PySphere),
@@ -218,11 +300,24 @@ pub enum PyShape {
 impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyShape {
     type Error = pyo3::PyErr;
     fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
-        // Try downcast to enum first (same module)
-        if let Ok(v) = ob.cast::<Self>() {
-            return Ok(v.borrow().clone());
+        // Try downcast to enum first (same module). cast_exact skips the MRO.
+        if let Ok(v) = ob.cast_exact::<Self>() {
+            return Ok(v.get().clone());
         }
-        // Try each variant's FromPyObject (handles cross-module via attribute extraction)
+        // Check concrete variant types via exact cast before falling back to
+        // attribute-based extraction for cross-module duck-typing.
+        if let Ok(v) = ob.cast_exact::<PySphere>() { return Ok(Self::Sphere(*v.get())); }
+        if let Ok(v) = ob.cast_exact::<PyCapsule>() { return Ok(Self::Capsule(*v.get())); }
+        if let Ok(v) = ob.cast_exact::<PyCuboid>() { return Ok(Self::Cuboid(*v.get())); }
+        if let Ok(v) = ob.cast_exact::<PyCylinder>() { return Ok(Self::Cylinder(*v.get())); }
+        if let Ok(v) = ob.cast_exact::<PyConvexPolytope>() { return Ok(Self::ConvexPolytope(v.get().clone())); }
+        if let Ok(v) = ob.cast_exact::<PyConvexPolygon>() { return Ok(Self::ConvexPolygon(v.get().clone())); }
+        if let Ok(v) = ob.cast_exact::<PyLine>() { return Ok(Self::Line(*v.get())); }
+        if let Ok(v) = ob.cast_exact::<PyRay>() { return Ok(Self::Ray(*v.get())); }
+        if let Ok(v) = ob.cast_exact::<PyLineSegment>() { return Ok(Self::LineSegment(*v.get())); }
+        if let Ok(v) = ob.cast_exact::<PyPlane>() { return Ok(Self::Plane(*v.get())); }
+        if let Ok(v) = ob.cast_exact::<PyPointcloud>() { return Ok(Self::Pointcloud(v.get().clone())); }
+        // Duck-typed fallbacks via each wrapper's FromPyObject impl.
         if let Ok(v) = ob.extract::<PySphere>() { return Ok(Self::Sphere(v)); }
         if let Ok(v) = ob.extract::<PyCapsule>() { return Ok(Self::Capsule(v)); }
         if let Ok(v) = ob.extract::<PyCuboid>() { return Ok(Self::Cuboid(v)); }
@@ -244,32 +339,17 @@ macro_rules! impl_transform_scale_py {
     ($ty:ty) => {
         #[pymethods]
         impl $ty {
-            fn scale(&mut self, factor: f64) {
-                self.0.scale_d(factor);
-            }
             fn scaled(&self, factor: f64) -> Self {
                 Self(self.0.scaled_d(factor))
-            }
-            fn translate(&mut self, offset: PyDVec3) {
-                self.0.translate_d(offset.0);
             }
             fn translated(&self, offset: PyDVec3) -> Self {
                 Self(self.0.translated_d(offset.0))
             }
-            fn rotate_mat(&mut self, mat: PyDMat3) {
-                self.0.rotate_mat_d(mat.0);
-            }
             fn rotated_mat(&self, mat: PyDMat3) -> Self {
                 Self(self.0.rotated_mat_d(mat.0))
             }
-            fn rotate_quat(&mut self, quat: PyDQuat) {
-                self.0.rotate_quat_d(quat.0);
-            }
             fn rotated_quat(&self, quat: PyDQuat) -> Self {
                 Self(self.0.rotated_quat_d(quat.0))
-            }
-            fn transform(&mut self, mat: PyDAffine3) {
-                self.0.transform_d(mat.0);
             }
             fn transformed(&self, mat: PyDAffine3) -> Self {
                 Self(self.0.transformed_d(mat.0))
@@ -415,8 +495,21 @@ impl_approx_py!(PyPointcloud);
 #[pymethods]
 impl PySphere {
     #[new]
-    fn new(center: PyDVec3, radius: f64) -> Self {
-        Self(Sphere::new_d(center.0, radius))
+    #[pyo3(signature = (center=None, radius=0.0, *, __pickle_state__=None))]
+    fn new(
+        center: Option<PyDVec3>,
+        radius: f64,
+        __pickle_state__: Option<Vec<u8>>,
+    ) -> PyResult<Self> {
+        if let Some(state) = __pickle_state__ {
+            return Ok(Self(pickle_decode::<Sphere>(&state)?));
+        }
+        match center {
+            Some(c) => Ok(Self(Sphere::new_d(c.0, radius))),
+            None => Err(pyo3::exceptions::PyValueError::new_err(
+                "Sphere requires center argument",
+            )),
+        }
     }
 
     #[getter]
@@ -444,8 +537,22 @@ impl PySphere {
 #[pymethods]
 impl PyCapsule {
     #[new]
-    fn new(p1: PyDVec3, p2: PyDVec3, radius: f64) -> Self {
-        Self(Capsule::new(dv3(p1), dv3(p2), radius as f32))
+    #[pyo3(signature = (p1=None, p2=None, radius=0.0, *, __pickle_state__=None))]
+    fn new(
+        p1: Option<PyDVec3>,
+        p2: Option<PyDVec3>,
+        radius: f64,
+        __pickle_state__: Option<Vec<u8>>,
+    ) -> PyResult<Self> {
+        if let Some(state) = __pickle_state__ {
+            return Ok(Self(pickle_decode::<Capsule>(&state)?));
+        }
+        match (p1, p2) {
+            (Some(a), Some(b)) => Ok(Self(Capsule::new(dv3(a), dv3(b), radius as f32))),
+            _ => Err(pyo3::exceptions::PyValueError::new_err(
+                "Capsule requires p1, p2 arguments",
+            )),
+        }
     }
 
     #[getter]
@@ -489,20 +596,30 @@ impl PyCapsule {
 #[pymethods]
 impl PyCuboid {
     #[new]
-    fn new(center: PyDVec3, axes: [[f64; 3]; 3], half_extents: [f64; 3]) -> Self {
-        Self(Cuboid::new(
-            dv3(center),
-            [
-                Vec3::new(axes[0][0] as f32, axes[0][1] as f32, axes[0][2] as f32),
-                Vec3::new(axes[1][0] as f32, axes[1][1] as f32, axes[1][2] as f32),
-                Vec3::new(axes[2][0] as f32, axes[2][1] as f32, axes[2][2] as f32),
-            ],
-            [
-                half_extents[0] as f32,
-                half_extents[1] as f32,
-                half_extents[2] as f32,
-            ],
-        ))
+    #[pyo3(signature = (center=None, axes=None, half_extents=None, *, __pickle_state__=None))]
+    fn new(
+        center: Option<PyDVec3>,
+        axes: Option<[[f64; 3]; 3]>,
+        half_extents: Option<[f64; 3]>,
+        __pickle_state__: Option<Vec<u8>>,
+    ) -> PyResult<Self> {
+        if let Some(state) = __pickle_state__ {
+            return Ok(Self(pickle_decode::<Cuboid>(&state)?));
+        }
+        match (center, axes, half_extents) {
+            (Some(center), Some(axes), Some(he)) => Ok(Self(Cuboid::new(
+                dv3(center),
+                [
+                    Vec3::new(axes[0][0] as f32, axes[0][1] as f32, axes[0][2] as f32),
+                    Vec3::new(axes[1][0] as f32, axes[1][1] as f32, axes[1][2] as f32),
+                    Vec3::new(axes[2][0] as f32, axes[2][1] as f32, axes[2][2] as f32),
+                ],
+                [he[0] as f32, he[1] as f32, he[2] as f32],
+            ))),
+            _ => Err(pyo3::exceptions::PyValueError::new_err(
+                "Cuboid requires center, axes, half_extents arguments",
+            )),
+        }
     }
 
     #[staticmethod]
@@ -645,8 +762,22 @@ impl PyCuboid {
 #[pymethods]
 impl PyCylinder {
     #[new]
-    fn new(p1: PyDVec3, p2: PyDVec3, radius: f64) -> Self {
-        Self(Cylinder::new(dv3(p1), dv3(p2), radius as f32))
+    #[pyo3(signature = (p1=None, p2=None, radius=0.0, *, __pickle_state__=None))]
+    fn new(
+        p1: Option<PyDVec3>,
+        p2: Option<PyDVec3>,
+        radius: f64,
+        __pickle_state__: Option<Vec<u8>>,
+    ) -> PyResult<Self> {
+        if let Some(state) = __pickle_state__ {
+            return Ok(Self(pickle_decode::<Cylinder>(&state)?));
+        }
+        match (p1, p2) {
+            (Some(a), Some(b)) => Ok(Self(Cylinder::new(dv3(a), dv3(b), radius as f32))),
+            _ => Err(pyo3::exceptions::PyValueError::new_err(
+                "Cylinder requires p1, p2 arguments",
+            )),
+        }
     }
 
     #[getter]
@@ -746,16 +877,31 @@ impl PyCylinder {
 #[pymethods]
 impl PyConvexPolytope {
     #[new]
-    fn new(planes: Vec<([f64; 3], f64)>, vertices: Vec<[f64; 3]>) -> Self {
-        let planes: Vec<(Vec3, f32)> = planes
-            .into_iter()
-            .map(|(n, d)| (Vec3::new(n[0] as f32, n[1] as f32, n[2] as f32), d as f32))
-            .collect();
-        let vertices: Vec<Vec3> = vertices
-            .into_iter()
-            .map(|v| Vec3::new(v[0] as f32, v[1] as f32, v[2] as f32))
-            .collect();
-        Self(ConvexPolytope::new(planes, vertices))
+    #[pyo3(signature = (planes=None, vertices=None, *, __pickle_state__=None))]
+    fn new(
+        planes: Option<Vec<([f64; 3], f64)>>,
+        vertices: Option<Vec<[f64; 3]>>,
+        __pickle_state__: Option<Vec<u8>>,
+    ) -> PyResult<Self> {
+        if let Some(state) = __pickle_state__ {
+            return Ok(Self(pickle_decode::<ConvexPolytope>(&state)?));
+        }
+        match (planes, vertices) {
+            (Some(planes), Some(vertices)) => {
+                let planes: Vec<(Vec3, f32)> = planes
+                    .into_iter()
+                    .map(|(n, d)| (Vec3::new(n[0] as f32, n[1] as f32, n[2] as f32), d as f32))
+                    .collect();
+                let vertices: Vec<Vec3> = vertices
+                    .into_iter()
+                    .map(|v| Vec3::new(v[0] as f32, v[1] as f32, v[2] as f32))
+                    .collect();
+                Ok(Self(ConvexPolytope::new(planes, vertices)))
+            }
+            _ => Err(pyo3::exceptions::PyValueError::new_err(
+                "ConvexPolytope requires planes, vertices arguments",
+            )),
+        }
     }
 
     #[staticmethod]
@@ -808,12 +954,28 @@ impl PyConvexPolytope {
 #[pymethods]
 impl PyConvexPolygon {
     #[new]
-    fn new(center: PyDVec3, normal: PyDVec3, vertices_2d: Vec<[f64; 2]>) -> Self {
-        let verts: Vec<[f32; 2]> = vertices_2d
-            .into_iter()
-            .map(|v| [v[0] as f32, v[1] as f32])
-            .collect();
-        Self(ConvexPolygon::new(dv3(center), dv3(normal), verts))
+    #[pyo3(signature = (center=None, normal=None, vertices_2d=None, *, __pickle_state__=None))]
+    fn new(
+        center: Option<PyDVec3>,
+        normal: Option<PyDVec3>,
+        vertices_2d: Option<Vec<[f64; 2]>>,
+        __pickle_state__: Option<Vec<u8>>,
+    ) -> PyResult<Self> {
+        if let Some(state) = __pickle_state__ {
+            return Ok(Self(pickle_decode::<ConvexPolygon>(&state)?));
+        }
+        match (center, normal, vertices_2d) {
+            (Some(center), Some(normal), Some(vertices_2d)) => {
+                let verts: Vec<[f32; 2]> = vertices_2d
+                    .into_iter()
+                    .map(|v| [v[0] as f32, v[1] as f32])
+                    .collect();
+                Ok(Self(ConvexPolygon::new(dv3(center), dv3(normal), verts)))
+            }
+            _ => Err(pyo3::exceptions::PyValueError::new_err(
+                "ConvexPolygon requires center, normal, vertices_2d arguments",
+            )),
+        }
     }
 
     #[staticmethod]
@@ -885,8 +1047,21 @@ impl PyConvexPolygon {
 #[pymethods]
 impl PyLine {
     #[new]
-    fn new(origin: PyDVec3, dir: PyDVec3) -> Self {
-        Self(Line::new(dv3(origin), dv3(dir)))
+    #[pyo3(signature = (origin=None, dir=None, *, __pickle_state__=None))]
+    fn new(
+        origin: Option<PyDVec3>,
+        dir: Option<PyDVec3>,
+        __pickle_state__: Option<Vec<u8>>,
+    ) -> PyResult<Self> {
+        if let Some(state) = __pickle_state__ {
+            return Ok(Self(pickle_decode::<Line>(&state)?));
+        }
+        match (origin, dir) {
+            (Some(o), Some(d)) => Ok(Self(Line::new(dv3(o), dv3(d)))),
+            _ => Err(pyo3::exceptions::PyValueError::new_err(
+                "Line requires origin, dir arguments",
+            )),
+        }
     }
 
     #[staticmethod]
@@ -919,8 +1094,21 @@ impl PyLine {
 #[pymethods]
 impl PyRay {
     #[new]
-    fn new(origin: PyDVec3, dir: PyDVec3) -> Self {
-        Self(Ray::new(dv3(origin), dv3(dir)))
+    #[pyo3(signature = (origin=None, dir=None, *, __pickle_state__=None))]
+    fn new(
+        origin: Option<PyDVec3>,
+        dir: Option<PyDVec3>,
+        __pickle_state__: Option<Vec<u8>>,
+    ) -> PyResult<Self> {
+        if let Some(state) = __pickle_state__ {
+            return Ok(Self(pickle_decode::<Ray>(&state)?));
+        }
+        match (origin, dir) {
+            (Some(o), Some(d)) => Ok(Self(Ray::new(dv3(o), dv3(d)))),
+            _ => Err(pyo3::exceptions::PyValueError::new_err(
+                "Ray requires origin, dir arguments",
+            )),
+        }
     }
 
     #[getter]
@@ -948,8 +1136,21 @@ impl PyRay {
 #[pymethods]
 impl PyLineSegment {
     #[new]
-    fn new(p1: PyDVec3, p2: PyDVec3) -> Self {
-        Self(LineSegment::new(dv3(p1), dv3(p2)))
+    #[pyo3(signature = (p1=None, p2=None, *, __pickle_state__=None))]
+    fn new(
+        p1: Option<PyDVec3>,
+        p2: Option<PyDVec3>,
+        __pickle_state__: Option<Vec<u8>>,
+    ) -> PyResult<Self> {
+        if let Some(state) = __pickle_state__ {
+            return Ok(Self(pickle_decode::<LineSegment>(&state)?));
+        }
+        match (p1, p2) {
+            (Some(a), Some(b)) => Ok(Self(LineSegment::new(dv3(a), dv3(b)))),
+            _ => Err(pyo3::exceptions::PyValueError::new_err(
+                "LineSegment requires p1, p2 arguments",
+            )),
+        }
     }
 
     #[getter]
@@ -979,8 +1180,21 @@ impl PyLineSegment {
 #[pymethods]
 impl PyPlane {
     #[new]
-    fn new(normal: PyDVec3, d: f64) -> Self {
-        Self(Plane::new(dv3(normal), d as f32))
+    #[pyo3(signature = (normal=None, d=0.0, *, __pickle_state__=None))]
+    fn new(
+        normal: Option<PyDVec3>,
+        d: f64,
+        __pickle_state__: Option<Vec<u8>>,
+    ) -> PyResult<Self> {
+        if let Some(state) = __pickle_state__ {
+            return Ok(Self(pickle_decode::<Plane>(&state)?));
+        }
+        match normal {
+            Some(n) => Ok(Self(Plane::new(dv3(n), d as f32))),
+            None => Err(pyo3::exceptions::PyValueError::new_err(
+                "Plane requires normal argument",
+            )),
+        }
     }
 
     #[staticmethod]
@@ -1010,8 +1224,22 @@ impl PyPlane {
 #[pymethods]
 impl PyPointcloud {
     #[new]
-    fn new(points: Vec<[f32; 3]>, r_range: (f32, f32), point_radius: f32) -> Self {
-        Self(Pointcloud::new(&points, r_range, point_radius))
+    #[pyo3(signature = (points=None, r_range=(0.0, 0.0), point_radius=0.0, *, __pickle_state__=None))]
+    fn new(
+        points: Option<Vec<[f32; 3]>>,
+        r_range: (f32, f32),
+        point_radius: f32,
+        __pickle_state__: Option<Vec<u8>>,
+    ) -> PyResult<Self> {
+        if let Some(state) = __pickle_state__ {
+            return Ok(Self(pickle_decode::<Pointcloud>(&state)?));
+        }
+        match points {
+            Some(pts) => Ok(Self(Pointcloud::new(&pts, r_range, point_radius))),
+            None => Err(pyo3::exceptions::PyValueError::new_err(
+                "Pointcloud requires points argument",
+            )),
+        }
     }
 
     fn __repr__(&self) -> String {
@@ -1022,8 +1250,12 @@ impl PyPointcloud {
 #[pymethods]
 impl PySphereCollection {
     #[new]
-    fn new() -> Self {
-        Self(SpheresSoA::new())
+    #[pyo3(signature = (*, __pickle_state__=None))]
+    fn new(__pickle_state__: Option<Vec<u8>>) -> PyResult<Self> {
+        if let Some(state) = __pickle_state__ {
+            return Ok(Self(pickle_decode::<SpheresSoA>(&state)?));
+        }
+        Ok(Self(SpheresSoA::new()))
     }
 
     #[staticmethod]
@@ -1039,6 +1271,17 @@ impl PySphereCollection {
 
     fn len(&self) -> usize {
         self.0.len()
+    }
+
+    fn __getitem__(&self, index: isize) -> PyResult<PySphere> {
+        let n = self.0.len() as isize;
+        let idx = if index < 0 { index + n } else { index };
+        if idx < 0 || idx >= n {
+            return Err(pyo3::exceptions::PyIndexError::new_err(
+                "SphereCollection index out of range",
+            ));
+        }
+        Ok(PySphere(self.0.get(idx as usize)))
     }
 
     fn is_empty(&self) -> bool {
@@ -1073,29 +1316,21 @@ impl PySphereCollection {
 #[pymethods]
 impl PyCollider {
     #[new]
-    fn new() -> Self {
-        Self(Collider::new())
+    #[pyo3(signature = (*, __pickle_state__=None))]
+    fn new(__pickle_state__: Option<Vec<u8>>) -> PyResult<Self> {
+        if let Some(state) = __pickle_state__ {
+            return Ok(Self(pickle_decode::<Collider<Pointcloud>>(&state)?));
+        }
+        Ok(Self(Collider::new()))
     }
 
     fn add(&mut self, shape: PyShape) {
-        match shape {
-            PyShape::Sphere(s) => self.0.add(s.0),
-            PyShape::Capsule(c) => self.0.add(c.0),
-            PyShape::Cuboid(c) => self.0.add(c.0),
-            PyShape::Cylinder(c) => self.0.add(c.0),
-            PyShape::ConvexPolytope(p) => self.0.add(p.0),
-            PyShape::ConvexPolygon(p) => self.0.add(p.0),
-            PyShape::Line(l) => self.0.add(l.0),
-            PyShape::Ray(r) => self.0.add(r.0),
-            PyShape::LineSegment(s) => self.0.add(s.0),
-            PyShape::Plane(p) => self.0.add(p.0),
-            PyShape::Pointcloud(p) => self.0.add(p.0),
-        }
+        push_shape_into(&mut self.0, shape);
     }
 
     fn extend(&mut self, shapes: Vec<PyShape>) {
         for shape in shapes {
-            self.add(shape);
+            push_shape_into(&mut self.0, shape);
         }
     }
 
@@ -1197,6 +1432,35 @@ impl PyCollider {
         format!("Collider(mask=0x{:04x})", self.0.mask())
     }
 }
+
+impl_getnewargs_ex!(PySphere);
+impl_getnewargs_ex!(PyCapsule);
+impl_getnewargs_ex!(PyCuboid);
+impl_getnewargs_ex!(PyCylinder);
+impl_getnewargs_ex!(PyConvexPolytope);
+impl_getnewargs_ex!(PyConvexPolygon);
+impl_getnewargs_ex!(PyLine);
+impl_getnewargs_ex!(PyRay);
+impl_getnewargs_ex!(PyLineSegment);
+impl_getnewargs_ex!(PyPlane);
+impl_getnewargs_ex!(PyPointcloud);
+impl_getnewargs_ex!(PySphereCollection);
+impl_getnewargs_ex!(PyCollider);
+
+impl_dataclass_fields!(PySphere, ["center", "radius"]);
+impl_dataclass_fields!(PyCapsule, ["p1", "p2", "radius"]);
+impl_dataclass_fields!(PyCuboid, ["center", "axes", "half_extents"]);
+impl_dataclass_fields!(PyCylinder, ["p1", "p2", "radius"]);
+impl_dataclass_fields!(PyConvexPolytope, ["planes", "vertices"]);
+impl_dataclass_fields!(PyConvexPolygon, ["center", "normal", "u_axis", "v_axis", "vertices_2d"]);
+impl_dataclass_fields!(PyLine, ["origin", "dir"]);
+impl_dataclass_fields!(PyRay, ["origin", "dir"]);
+impl_dataclass_fields!(PyLineSegment, ["p1", "p2"]);
+impl_dataclass_fields!(PyPlane, ["normal", "d"]);
+impl_dataclass_fields!(PyPointcloud, []);
+impl_dataclass_fields!(PySphereCollection, []);
+impl_dataclass_fields!(PyCollider, []);
+impl_dataclass_fields!(PyShape, []);
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PySphere>()?;

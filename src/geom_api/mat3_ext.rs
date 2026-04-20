@@ -65,18 +65,31 @@ impl PyDMat3 {
     }
 
     /// Create from a rotation vector (direction=axis, magnitude=angle in radians).
+    ///
+    /// Accepts a numpy ndarray, list, tuple, or any object implementing
+    /// :class:`PyDVec3`'s extraction protocol.
     #[classmethod]
     fn from_vector(
         _cls: &Bound<'_, pyo3::types::PyType>,
-        vec: PyReadonlyArray1<'_, f64>,
+        vec: &Bound<'_, pyo3::PyAny>,
     ) -> PyResult<Self> {
-        let view = vec.as_array();
-        if view.len() != 3 {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                "expected 3-element array",
-            ));
-        }
-        let v = DVec3::new(view[0], view[1], view[2]);
+        let v: DVec3 = if let Ok(arr) = vec.extract::<PyReadonlyArray1<'_, f64>>() {
+            let view = arr.as_array();
+            if view.len() != 3 {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "expected 3-element array",
+                ));
+            }
+            DVec3::new(view[0], view[1], view[2])
+        } else {
+            // Fallback: list / tuple / Vec3-like object.
+            let pv: crate::glam_wrappers::PyDVec3 = vec.extract().map_err(|_| {
+                pyo3::exceptions::PyTypeError::new_err(
+                    "expected a 3-element ndarray, list, tuple, or Vec3",
+                )
+            })?;
+            pv.0
+        };
         let angle = v.length();
         if angle < 1e-12 {
             return Ok(Self(DMat3::IDENTITY));

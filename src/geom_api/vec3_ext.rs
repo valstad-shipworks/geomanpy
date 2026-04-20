@@ -5,19 +5,28 @@ use pyo3::prelude::*;
 
 #[pymethods]
 impl PyDVec3 {
-    /// Create from a 3-element numpy array. Geom.py Translation3d.from_matrix().
+    /// Create from a 3-element sequence (numpy array, list, or tuple).
+    /// Geom.py Translation3d.from_matrix().
     #[classmethod]
     fn from_matrix(
         _cls: &Bound<'_, pyo3::types::PyType>,
-        matrix: PyReadonlyArray1<'_, f64>,
+        matrix: &Bound<'_, pyo3::PyAny>,
     ) -> PyResult<Self> {
-        let view = matrix.as_array();
-        if view.len() != 3 {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                "expected 3-element array",
-            ));
+        if let Ok(arr) = matrix.extract::<PyReadonlyArray1<'_, f64>>() {
+            let view = arr.as_array();
+            if view.len() != 3 {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "expected 3-element array",
+                ));
+            }
+            return Ok(Self(DVec3::new(view[0], view[1], view[2])));
         }
-        Ok(Self(DVec3::new(view[0], view[1], view[2])))
+        let xs: [f64; 3] = matrix.extract().map_err(|_| {
+            pyo3::exceptions::PyTypeError::new_err(
+                "expected a 3-element ndarray, list, or tuple",
+            )
+        })?;
+        Ok(Self(DVec3::new(xs[0], xs[1], xs[2])))
     }
 
     /// Zero vector.
