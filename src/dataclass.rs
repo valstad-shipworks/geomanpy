@@ -47,6 +47,26 @@ macro_rules! impl_dataclass_fields {
                 $crate::dataclass::make_dataclass_fields(py, &[$($name),*])
                     .map(|d| d.unbind())
             }
+
+            // Populate `__dict__` with live field values so serializers that
+            // iterate the instance dict (e.g. orjson's dataclass fast path)
+            // see stable references held by the returned dict, rather than
+            // fresh single-refcount objects returned by our getters.
+            #[getter]
+            #[allow(non_snake_case, unused_imports)]
+            fn __dict__<'py>(
+                slf: &pyo3::Bound<'py, Self>,
+            ) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyDict>> {
+                use pyo3::types::PyAnyMethods;
+                let py = slf.py();
+                let d = pyo3::types::PyDict::new(py);
+                $(
+                    let key = pyo3::intern!(py, $name);
+                    let val = slf.as_any().getattr(key)?;
+                    d.set_item(key, val)?;
+                )*
+                Ok(d)
+            }
         }
     };
 }
