@@ -210,13 +210,43 @@ impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyCollider {
             }
         }
         // Legacy duck-typed path: object exposing spheres/cuboids/cylinders/capsules.
+        // Cross-module fallback: when `cast_exact` above fails because the
+        // PyCollider was registered in a different pyo3 extension module
+        // than this one (e.g. valstad bindings vs geomanpy bindings link
+        // independent copies of the type), we reconstruct via duck-typed
+        // method calls. The `spheres()` accessor returns a
+        // PySphereCollection; pyo3's `extract::<Vec<PySphere>>` on that
+        // doesn't always succeed across module boundaries, so try the
+        // dedicated SoA extraction first and only fall back to a
+        // Vec-extract if that fails.
         let py = ob.py();
-        let spheres: Vec<PySphere> = ob
-            .call_method0(pyo3::intern!(py, "spheres"))
-            .and_then(|v| v.extract())
-            .unwrap_or_default();
-        for s in spheres {
-            collider.add(s.0);
+        if let Ok(spheres_obj) = ob.call_method0(pyo3::intern!(py, "spheres")) {
+            // First try to extract as a SphereCollection (SoA).
+            if let Ok(soa) = spheres_obj.extract::<PySphereCollection>() {
+                let n = soa.0.len();
+                for i in 0..n {
+                    collider.add(soa.0.get(i));
+                }
+            } else if let Ok(vs) = spheres_obj.extract::<Vec<PySphere>>() {
+                for s in vs {
+                    collider.add(s.0);
+                }
+            } else if let Ok(len) = spheres_obj
+                .call_method0(pyo3::intern!(py, "__len__"))
+                .and_then(|v| v.extract::<usize>())
+            {
+                // Last-resort: walk via __getitem__. Works across pyo3
+                // module boundaries even when both class identity checks
+                // fail — extracts each PySphere individually via duck
+                // typing on attributes.
+                for i in 0..len {
+                    if let Ok(item) = spheres_obj.call_method1(pyo3::intern!(py, "__getitem__"), (i,)) {
+                        if let Ok(s) = item.extract::<PySphere>() {
+                            collider.add(s.0);
+                        }
+                    }
+                }
+            }
         }
         let cuboids: Vec<PyCuboid> = ob
             .call_method0(pyo3::intern!(py, "cuboids"))
