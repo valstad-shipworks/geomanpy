@@ -77,12 +77,6 @@ impl PyDQuat {
 
     #[staticmethod]
     #[inline]
-    fn identity() -> Self {
-        Self(DQuat::IDENTITY)
-    }
-
-    #[staticmethod]
-    #[inline]
     fn from_axis_angle(axis: PyDVec3, angle: f64) -> Self {
         Self(DQuat::from_axis_angle(axis.0, angle))
     }
@@ -323,10 +317,6 @@ impl PyDQuat {
     #[inline]
     fn abs_diff_eq(&self, rhs: Self, max_abs_diff: f64) -> bool {
         self.0.abs_diff_eq(rhs.0, max_abs_diff)
-    }
-    #[inline]
-    fn relative_eq(&self, rhs: Self, max_abs_diff: f64, max_relative: f64) -> bool {
-        approx::RelativeEq::relative_eq(&self.0, &rhs.0, max_abs_diff, max_relative)
     }
 }
 

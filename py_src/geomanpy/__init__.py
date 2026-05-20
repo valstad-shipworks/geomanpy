@@ -21,9 +21,6 @@ from geomanpy._geomanpy import (  # type: ignore
     Pointcloud,
     SphereCollection,
     Collider,
-    AlignedBox3d,
-    RawGeomUtil,
-    trimesh_to_convex_polytope,
 )
 
 Quaternion = Quat
@@ -63,12 +60,9 @@ __all__ = [
     "Rotation3d",
     "Translation3d",
     "Transform3d",
-    "AlignedBox3d",
     "Box3d",
     "Sphere3d",
     "Cylinder3d",
     "ObstacleUnion",
     "PointCloud",
-    "RawGeomUtil",
-    "trimesh_to_convex_polytope",
 ]

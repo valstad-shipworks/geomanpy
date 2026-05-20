@@ -80,12 +80,6 @@ impl PyDMat4 {
 
     #[staticmethod]
     #[inline]
-    fn identity() -> Self {
-        Self(DMat4::IDENTITY)
-    }
-
-    #[staticmethod]
-    #[inline]
     fn from_cols(x_axis: PyDVec4, y_axis: PyDVec4, z_axis: PyDVec4, w_axis: PyDVec4) -> Self {
         Self(DMat4::from_cols(x_axis.0, y_axis.0, z_axis.0, w_axis.0))
     }
@@ -490,10 +484,6 @@ impl PyDMat4 {
     #[inline]
     fn abs_diff_eq(&self, rhs: Self, max_abs_diff: f64) -> bool {
         self.0.abs_diff_eq(rhs.0, max_abs_diff)
-    }
-    #[inline]
-    fn relative_eq(&self, rhs: Self, max_abs_diff: f64, max_relative: f64) -> bool {
-        approx::RelativeEq::relative_eq(&self.0, &rhs.0, max_abs_diff, max_relative)
     }
 }
 

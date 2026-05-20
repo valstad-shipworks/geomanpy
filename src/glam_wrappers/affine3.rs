@@ -67,12 +67,6 @@ impl PyDAffine3 {
 
     #[staticmethod]
     #[inline]
-    fn identity() -> Self {
-        Self(DAffine3::IDENTITY)
-    }
-
-    #[staticmethod]
-    #[inline]
     fn from_cols(x_axis: PyDVec3, y_axis: PyDVec3, z_axis: PyDVec3, w_axis: PyDVec3) -> Self {
         Self(DAffine3::from_cols(x_axis.0, y_axis.0, z_axis.0, w_axis.0))
     }
@@ -270,10 +264,6 @@ impl PyDAffine3 {
     fn abs_diff_eq(&self, rhs: Self, max_abs_diff: f64) -> bool {
         self.0.abs_diff_eq(rhs.0, max_abs_diff)
     }
-    #[inline]
-    fn relative_eq(&self, rhs: Self, max_abs_diff: f64, max_relative: f64) -> bool {
-        approx::RelativeEq::relative_eq(&self.0, &rhs.0, max_abs_diff, max_relative)
-    }
 }
 
 #[pymethods]
@@ -313,36 +303,6 @@ impl PyDAffine3 {
 
     fn __mul__(&self, other: Self) -> Self {
         Self(self.0 * other.0)
-    }
-}
-
-/// Additional helper methods ported from valstad geom.py.
-#[pymethods]
-impl PyDAffine3 {
-    /// Convert to a 4x4 homogeneous transformation matrix (numpy).
-    fn to_matrix<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
-        let m = self.0.matrix3;
-        let t = self.0.translation;
-        let rows: [[f64; 4]; 4] = [
-            [m.x_axis.x, m.y_axis.x, m.z_axis.x, t.x],
-            [m.x_axis.y, m.y_axis.y, m.z_axis.y, t.y],
-            [m.x_axis.z, m.y_axis.z, m.z_axis.z, t.z],
-            [0.0, 0.0, 0.0, 1.0],
-        ];
-        array2_from_rows(py, rows)
-    }
-
-    /// Create an Affine3 from a 4x4 homogeneous transformation matrix (numpy).
-    #[staticmethod]
-    fn from_matrix(array: PyReadonlyArray2<'_, f64>) -> PyResult<Self> {
-        let rows = extract_numpy_matrix::<4, 4>(array, "Affine3.from_matrix")?;
-        let rot = glam::DMat3::from_cols(
-            glam::DVec3::new(rows[0][0], rows[1][0], rows[2][0]),
-            glam::DVec3::new(rows[0][1], rows[1][1], rows[2][1]),
-            glam::DVec3::new(rows[0][2], rows[1][2], rows[2][2]),
-        );
-        let t = glam::DVec3::new(rows[0][3], rows[1][3], rows[2][3]);
-        Ok(Self(DAffine3::from_mat3_translation(rot, t)))
     }
 }
 

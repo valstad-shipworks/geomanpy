@@ -334,10 +334,6 @@ impl PyDVec4 {
     fn abs_diff_eq(&self, rhs: Self, max_abs_diff: f64) -> bool {
         self.0.abs_diff_eq(rhs.0, max_abs_diff)
     }
-    #[inline]
-    fn relative_eq(&self, rhs: Self, max_abs_diff: f64, max_relative: f64) -> bool {
-        approx::RelativeEq::relative_eq(&self.0, &rhs.0, max_abs_diff, max_relative)
-    }
 }
 
 impl_vec_unary!(

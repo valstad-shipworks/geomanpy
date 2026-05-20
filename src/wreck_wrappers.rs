@@ -496,15 +496,6 @@ macro_rules! impl_approx_py {
             fn abs_diff_eq(&self, rhs: Self, max_abs_diff: f64) -> bool {
                 approx::AbsDiffEq::abs_diff_eq(&self.0, &rhs.0, max_abs_diff as f32)
             }
-            #[inline]
-            fn relative_eq(&self, rhs: Self, max_abs_diff: f64, max_relative: f64) -> bool {
-                approx::RelativeEq::relative_eq(
-                    &self.0,
-                    &rhs.0,
-                    max_abs_diff as f32,
-                    max_relative as f32,
-                )
-            }
         }
     };
 }
@@ -602,6 +593,11 @@ impl PyCapsule {
 
     fn closest_point_to(&self, point: PyDVec3) -> PyResult<PyDVec3> {
         Ok(v3d(self.0.closest_point_to(dv3(point))))
+    }
+
+    fn bounding_sphere(&self) -> (PyDVec3, f64) {
+        let (c, r) = self.0.bounding_sphere();
+        (v3d(c), r as f64)
     }
 
     fn stretch(&self, translation: PyDVec3) -> Vec<PyShape> {
@@ -719,27 +715,6 @@ impl PyCuboid {
         self.0.to_string()
     }
 
-    /// Return the orientation of the cuboid as a Mat3 (rotation matrix from axes).
-    #[getter]
-    fn orientation(&self) -> PyDMat3 {
-        let a = &self.0.axes;
-        PyDMat3(glam::DMat3::from_cols(
-            glam::DVec3::new(a[0].x as f64, a[0].y as f64, a[0].z as f64),
-            glam::DVec3::new(a[1].x as f64, a[1].y as f64, a[1].z as f64),
-            glam::DVec3::new(a[2].x as f64, a[2].y as f64, a[2].z as f64),
-        ))
-    }
-
-    /// Return the full size (2 * half_extents) as a tuple.
-    #[getter]
-    fn size(&self) -> (f64, f64, f64) {
-        (
-            self.0.half_extents[0] as f64 * 2.0,
-            self.0.half_extents[1] as f64 * 2.0,
-            self.0.half_extents[2] as f64 * 2.0,
-        )
-    }
-
     /// Return the 8 corner points of the cuboid in world space.
     fn corners(&self) -> Vec<PyDVec3> {
         let c = self.0.center;
@@ -755,20 +730,6 @@ impl PyCuboid {
             }
         }
         out
-    }
-
-    /// Check if a point is inside the cuboid (with a small epsilon tolerance).
-    fn contains(&self, point: PyDVec3) -> bool {
-        let p = dv3(point);
-        let local = p - self.0.center;
-        let eps = 1e-9f32;
-        for i in 0..3 {
-            let proj = local.dot(self.0.axes[i]);
-            if proj.abs() > self.0.half_extents[i] + eps {
-                return false;
-            }
-        }
-        true
     }
 
     /// Create a Cuboid from center, full size (not half), and orientation (Mat3).
@@ -848,59 +809,15 @@ impl PyCylinder {
     }
 }
 
-/// Additional convenience methods for Cylinder.
 #[pymethods]
 impl PyCylinder {
-    /// Return the center point (midpoint of p1 and p2).
-    #[getter]
-    fn center(&self) -> PyDVec3 {
-        v3d((self.0.p1 + self.0.p2()) * 0.5)
-    }
-
-    /// Return the length of the cylinder (distance between p1 and p2).
-    #[getter]
     fn length(&self) -> f64 {
-        self.0.p1.distance(self.0.p2()) as f64
+        self.0.length() as f64
     }
 
-    /// Return the orientation as a Mat3 (rotation from z-axis to cylinder axis).
-    #[getter]
-    fn orientation(&self) -> PyDMat3 {
-        let axis = self.0.p2() - self.0.p1;
-        let len = axis.length();
-        if len < 1e-12 {
-            return PyDMat3(glam::DMat3::IDENTITY);
-        }
-        let dir = axis / len;
-        let z = glam::DVec3::new(0.0, 0.0, 1.0);
-        let d = glam::DVec3::new(dir.x as f64, dir.y as f64, dir.z as f64);
-        let q = glam::DQuat::from_rotation_arc(z, d);
-        PyDMat3(glam::DMat3::from_quat(q))
-    }
-
-    /// Create a Cylinder from center, orientation (Mat3), length, and radius.
-    #[staticmethod]
-    fn from_center_orientation_length_radius(
-        center: PyDVec3,
-        orientation: PyDMat3,
-        length: f64,
-        radius: f64,
-    ) -> Self {
-        let half_len = length.abs() / 2.0;
-        let z = glam::DVec3::new(0.0, 0.0, half_len);
-        let half_axis = orientation.0 * z;
-        let c = glam::DVec3::new(
-            center.0.x,
-            center.0.y,
-            center.0.z,
-        );
-        let p1 = c - half_axis;
-        let p2 = c + half_axis;
-        Self(Cylinder::new(
-            Vec3::new(p1.x as f32, p1.y as f32, p1.z as f32),
-            Vec3::new(p2.x as f32, p2.y as f32, p2.z as f32),
-            radius.abs() as f32,
-        ))
+    fn bounding_sphere(&self) -> (PyDVec3, f64) {
+        let (c, r) = self.0.bounding_sphere();
+        (v3d(c), r as f64)
     }
 }
 
@@ -1193,6 +1110,11 @@ impl PyLineSegment {
         v3d(self.0.p2())
     }
 
+    fn bounding_sphere(&self) -> (PyDVec3, f64) {
+        let (c, r) = self.0.bounding_sphere();
+        (v3d(c), r as f64)
+    }
+
     fn stretch(&self, translation: PyDVec3) -> Vec<PyShape> {
         match self.0.stretch(dv3(translation)) {
             LineSegmentStretch::Parallel(s) => vec![PyShape::LineSegment(PyLineSegment(s))],
@@ -1272,6 +1194,43 @@ impl PyPointcloud {
         }
     }
 
+    /// Create a Pointcloud from an Nx3 numpy array of f64 points.
+    #[staticmethod]
+    #[pyo3(signature = (points, point_radius = 0.033))]
+    fn from_numpy(
+        points: numpy::PyReadonlyArray2<'_, f64>,
+        point_radius: f32,
+    ) -> PyResult<Self> {
+        let view = points.as_array();
+        if view.shape()[1] != 3 {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "points must be (N, 3)",
+            ));
+        }
+        let n = view.shape()[0];
+        let mut pts = Vec::with_capacity(n);
+        let mut min_r = f32::MAX;
+        let mut max_r = 0.0f32;
+        for i in 0..n {
+            let x = view[(i, 0)] as f32;
+            let y = view[(i, 1)] as f32;
+            let z = view[(i, 2)] as f32;
+            let r = (x * x + y * y + z * z).sqrt();
+            if r < min_r { min_r = r; }
+            if r > max_r { max_r = r; }
+            pts.push([x, y, z]);
+        }
+        if pts.is_empty() {
+            min_r = 0.0;
+            max_r = 0.0;
+        }
+        Ok(Self(Pointcloud::new(
+            &pts,
+            (min_r, max_r + point_radius),
+            point_radius,
+        )))
+    }
+
     fn __repr__(&self) -> String {
         "Pointcloud(...)".to_string()
     }
@@ -1294,7 +1253,7 @@ impl PySphereCollection {
     }
 
     #[staticmethod]
-    fn from_spheres(spheres: Vec<PySphere>) -> Self {
+    fn from_slice(spheres: Vec<PySphere>) -> Self {
         let inner: Vec<Sphere> = spheres.into_iter().map(|s| s.0).collect();
         Self(SpheresSoA::from_slice(&inner))
     }
@@ -1358,12 +1317,6 @@ impl PyCollider {
         push_shape_into(&mut self.0, shape);
     }
 
-    fn extend(&mut self, shapes: Vec<PyShape>) {
-        for shape in shapes {
-            push_shape_into(&mut self.0, shape);
-        }
-    }
-
     fn include(&mut self, other: PyCollider) {
         self.0.include(other.0);
     }
@@ -1410,8 +1363,12 @@ impl PyCollider {
         self.0.cylinders().iter().map(|c| PyCylinder(*c)).collect()
     }
 
-    fn get_planes(&self) -> Vec<PyPlane> {
+    fn planes(&self) -> Vec<PyPlane> {
         self.0.planes().iter().map(|p| PyPlane(*p)).collect()
+    }
+
+    fn try_stretch_d(&self, translation: PyDVec3) -> Option<Self> {
+        self.0.try_stretch_d(translation.0).map(|c| Self(c.into()))
     }
 
     fn polygons(&self) -> Vec<PyConvexPolygon> {
