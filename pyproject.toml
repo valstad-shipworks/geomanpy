@@ -8,7 +8,7 @@ requires-python = ">=3.7"
 dynamic = ["version"]
 
 [tool.maturin]
-features = ["pyo3/extension-module"]
+features = ["pyo3/extension-module", "pyo3-backend", "not_build_only"]
 bindings = "pyo3"
 profile = "release"
 module-name = "geomanpy._geomanpy"
