@@ -1,6 +1,6 @@
 [package]
 name = "geomanpy"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 license = "Apache-2.0"
 authors = ["Bowan Foryt <bowan@valstad.com>"]
@@ -13,14 +13,8 @@ crate-type = ["cdylib", "rlib"]
 [features]
 default = ["pyo3-backend", "not_build_only"]
 not_build_only = []
-# Active Python backend — exactly one must be selected.
 pyo3-backend = ["dep:pyo3", "dep:numpy", "dep:pythonize"]
 rustpython-backend = ["dep:rustpython-vm", "dep:rumpy", "dep:ndarray"]
-# Opt-in lock-checked interior mutability for the rustpython backend.
-# Without it, mutable wrappers use `UnsafeCell` and rely on the embedder
-# to avoid concurrent access (cheap, single-threaded). With it, they use
-# rustpython's `PyRwLock`, which is safe under threading at the cost of
-# per-access locking. Modeled on rumpy's `safe-locks` feature.
 safe-locks = ["rustpython-vm?/threading"]
 
 [dependencies]

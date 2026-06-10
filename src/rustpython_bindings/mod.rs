@@ -2,7 +2,7 @@
 //!
 //! All type implementations live alongside their pyo3 counterparts in
 //! `crate::glam_wrappers::*` and `crate::wreck_wrappers::*`. This module
-//! exposes them under the `_geomanpy` module name.
+//! exposes them under the `geomanpy` module name.
 
 /// Build the `_geomanpy` module definition for embedding into a
 /// [`rustpython_vm::Interpreter`].
@@ -12,7 +12,7 @@ pub fn make_module(
     geomanpy_module::module_def(ctx)
 }
 
-#[rustpython_vm::pymodule(name = "_geomanpy")]
+#[rustpython_vm::pymodule(name = "geomanpy")]
 pub(crate) mod geomanpy_module {
     use rustpython_vm::{VirtualMachine, builtins::PyTypeRef, class::PyClassImpl};
 
