@@ -27,7 +27,7 @@ serde_json = "1.0"
 serde-pickle = "1.2"
 
 numpy = { version = "0.28.0", optional = true }
-pyo3 = { version = "0.28.3", features = ["multiple-pymethods"], optional = true }
+pyo3 = { version = "0.28.3", features = ["abi3-py37", "multiple-pymethods"], optional = true }
 pythonize = { version = "0.28.0", optional = true }
 
 rustpython-vm = { version = "0.5.0", optional = true }

@@ -42,13 +42,18 @@ jobs:
       - name: Cargo check
         run: cargo check --target ${{ matrix.target }}
 
-      - name: Cargo check RustPython backend
-        run: cargo check --target ${{ matrix.target }} --no-default-features --features rustpython-backend,not_build_only
-
       - name: Clippy
         run: cargo clippy --target ${{ matrix.target }} -- -D warnings
 
+      # The RustPython backend embeds an interpreter (psm/stacker need a C
+      # toolchain) and ships no cross-platform wheels, so it's only built on
+      # the native host rather than across every wheel target.
+      - name: Cargo check RustPython backend
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: cargo check --target ${{ matrix.target }} --no-default-features --features rustpython-backend,not_build_only
+
       - name: Clippy RustPython backend
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
         run: cargo clippy --target ${{ matrix.target }} --no-default-features --features rustpython-backend,not_build_only -- -D warnings
 
       - name: Tests
