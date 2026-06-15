@@ -172,7 +172,11 @@ mod rustpython_impl {
             self.0.mask()
         }
         #[pymethod]
-        fn try_stretch_d(&self, translation: PyObjectRef, vm: &VirtualMachine) -> PyResult<Option<Self>> {
+        fn try_stretch_d(
+            &self,
+            translation: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<Option<Self>> {
             let t = extract_vec3(&translation, vm)?;
             Ok(self.0.try_stretch_d(t).map(|c| Self(c.into())))
         }

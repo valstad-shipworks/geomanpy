@@ -574,7 +574,12 @@ mod rustpython_impl {
         }
         #[pymethod]
         fn to_cols_array(&self, vm: &VirtualMachine) -> PyObjectRef {
-            let items = self.0.to_cols_array().iter().map(|v| vm.ctx.new_float(*v).into()).collect();
+            let items = self
+                .0
+                .to_cols_array()
+                .iter()
+                .map(|v| vm.ctx.new_float(*v).into())
+                .collect();
             vm.ctx.new_list(items).into()
         }
         #[pymethod]

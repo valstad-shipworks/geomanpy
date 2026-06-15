@@ -876,13 +876,15 @@ mod rustpython_impl {
             return Ok(PyDVec3(x.0 * v.0).into_pyobject(vm));
         }
         if let Some(x) = a.downcast_ref::<PyDMat3>()
-            && let Ok(s) = f64::try_from_object(vm, b.to_owned()) {
-                return Ok(PyDMat3(x.0 * s).into_pyobject(vm));
-            }
+            && let Ok(s) = f64::try_from_object(vm, b.to_owned())
+        {
+            return Ok(PyDMat3(x.0 * s).into_pyobject(vm));
+        }
         if let Some(y) = b.downcast_ref::<PyDMat3>()
-            && let Ok(s) = f64::try_from_object(vm, a.to_owned()) {
-                return Ok(PyDMat3(s * y.0).into_pyobject(vm));
-            }
+            && let Ok(s) = f64::try_from_object(vm, a.to_owned())
+        {
+            return Ok(PyDMat3(s * y.0).into_pyobject(vm));
+        }
         Ok(vm.ctx.not_implemented())
     }
 
@@ -902,9 +904,10 @@ mod rustpython_impl {
 
     fn mat3_div(a: &PyObject, b: &PyObject, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
         if let Some(x) = a.downcast_ref::<PyDMat3>()
-            && let Ok(s) = f64::try_from_object(vm, b.to_owned()) {
-                return Ok(PyDMat3(x.0 / s).into_pyobject(vm));
-            }
+            && let Ok(s) = f64::try_from_object(vm, b.to_owned())
+        {
+            return Ok(PyDMat3(x.0 / s).into_pyobject(vm));
+        }
         Ok(vm.ctx.not_implemented())
     }
 

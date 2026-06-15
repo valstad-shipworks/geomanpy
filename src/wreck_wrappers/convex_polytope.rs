@@ -103,7 +103,9 @@ mod rustpython_impl {
     use super::*;
     use crate::glam_wrappers::quat::extract_quat;
     use crate::glam_wrappers::vec3::extract_vec3;
-    use crate::wreck_wrappers::rustpython_glue::{dv3, extract_affine3, extract_mat3, shape_collides};
+    use crate::wreck_wrappers::rustpython_glue::{
+        dv3, extract_affine3, extract_mat3, shape_collides,
+    };
     use crate::wreck_wrappers::{PyCuboid, PySphere};
     use rustpython_vm::{
         Py, PyObjectRef, PyPayload, PyResult, VirtualMachine,

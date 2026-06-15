@@ -722,7 +722,11 @@ pub(crate) mod rustpython_glue {
 
     /// Dispatch `lhs.collides(other)` where `other` is any concrete shape
     /// wrapper. Mirrors the pyo3 `impl_collides_all!` match.
-    pub(crate) fn shape_collides<S>(lhs: &S, obj: &PyObjectRef, vm: &VirtualMachine) -> PyResult<bool>
+    pub(crate) fn shape_collides<S>(
+        lhs: &S,
+        obj: &PyObjectRef,
+        vm: &VirtualMachine,
+    ) -> PyResult<bool>
     where
         S: wreck::Collides<Sphere>
             + wreck::Collides<Capsule>
@@ -736,17 +740,39 @@ pub(crate) mod rustpython_glue {
             + wreck::Collides<Plane>
             + wreck::Collides<Pointcloud>,
     {
-        if let Some(v) = obj.downcast_ref::<PySphere>() { return Ok(lhs.collides(&v.0)); }
-        if let Some(v) = obj.downcast_ref::<PyCapsule>() { return Ok(lhs.collides(&v.0)); }
-        if let Some(v) = obj.downcast_ref::<PyCuboid>() { return Ok(lhs.collides(&v.0)); }
-        if let Some(v) = obj.downcast_ref::<PyCylinder>() { return Ok(lhs.collides(&v.0)); }
-        if let Some(v) = obj.downcast_ref::<PyConvexPolytope>() { return Ok(lhs.collides(&v.0)); }
-        if let Some(v) = obj.downcast_ref::<PyConvexPolygon>() { return Ok(lhs.collides(&v.0)); }
-        if let Some(v) = obj.downcast_ref::<PyLine>() { return Ok(lhs.collides(&v.0)); }
-        if let Some(v) = obj.downcast_ref::<PyRay>() { return Ok(lhs.collides(&v.0)); }
-        if let Some(v) = obj.downcast_ref::<PyLineSegment>() { return Ok(lhs.collides(&v.0)); }
-        if let Some(v) = obj.downcast_ref::<PyPlane>() { return Ok(lhs.collides(&v.0)); }
-        if let Some(v) = obj.downcast_ref::<PyPointcloud>() { return Ok(lhs.collides(&v.0)); }
+        if let Some(v) = obj.downcast_ref::<PySphere>() {
+            return Ok(lhs.collides(&v.0));
+        }
+        if let Some(v) = obj.downcast_ref::<PyCapsule>() {
+            return Ok(lhs.collides(&v.0));
+        }
+        if let Some(v) = obj.downcast_ref::<PyCuboid>() {
+            return Ok(lhs.collides(&v.0));
+        }
+        if let Some(v) = obj.downcast_ref::<PyCylinder>() {
+            return Ok(lhs.collides(&v.0));
+        }
+        if let Some(v) = obj.downcast_ref::<PyConvexPolytope>() {
+            return Ok(lhs.collides(&v.0));
+        }
+        if let Some(v) = obj.downcast_ref::<PyConvexPolygon>() {
+            return Ok(lhs.collides(&v.0));
+        }
+        if let Some(v) = obj.downcast_ref::<PyLine>() {
+            return Ok(lhs.collides(&v.0));
+        }
+        if let Some(v) = obj.downcast_ref::<PyRay>() {
+            return Ok(lhs.collides(&v.0));
+        }
+        if let Some(v) = obj.downcast_ref::<PyLineSegment>() {
+            return Ok(lhs.collides(&v.0));
+        }
+        if let Some(v) = obj.downcast_ref::<PyPlane>() {
+            return Ok(lhs.collides(&v.0));
+        }
+        if let Some(v) = obj.downcast_ref::<PyPointcloud>() {
+            return Ok(lhs.collides(&v.0));
+        }
         Err(vm.new_type_error("collides() expects a shape".to_owned()))
     }
 
@@ -769,20 +795,40 @@ pub(crate) mod rustpython_glue {
             + wreck::Collides<LineSegment>
             + wreck::Collides<Plane>,
     {
-        if let Some(v) = obj.downcast_ref::<PySphere>() { return Ok(lhs.collides(&v.0)); }
-        if let Some(v) = obj.downcast_ref::<PyCapsule>() { return Ok(lhs.collides(&v.0)); }
-        if let Some(v) = obj.downcast_ref::<PyCuboid>() { return Ok(lhs.collides(&v.0)); }
-        if let Some(v) = obj.downcast_ref::<PyCylinder>() { return Ok(lhs.collides(&v.0)); }
-        if let Some(v) = obj.downcast_ref::<PyConvexPolytope>() { return Ok(lhs.collides(&v.0)); }
-        if let Some(v) = obj.downcast_ref::<PyConvexPolygon>() { return Ok(lhs.collides(&v.0)); }
-        if let Some(v) = obj.downcast_ref::<PyLine>() { return Ok(lhs.collides(&v.0)); }
-        if let Some(v) = obj.downcast_ref::<PyRay>() { return Ok(lhs.collides(&v.0)); }
-        if let Some(v) = obj.downcast_ref::<PyLineSegment>() { return Ok(lhs.collides(&v.0)); }
-        if let Some(v) = obj.downcast_ref::<PyPlane>() { return Ok(lhs.collides(&v.0)); }
+        if let Some(v) = obj.downcast_ref::<PySphere>() {
+            return Ok(lhs.collides(&v.0));
+        }
+        if let Some(v) = obj.downcast_ref::<PyCapsule>() {
+            return Ok(lhs.collides(&v.0));
+        }
+        if let Some(v) = obj.downcast_ref::<PyCuboid>() {
+            return Ok(lhs.collides(&v.0));
+        }
+        if let Some(v) = obj.downcast_ref::<PyCylinder>() {
+            return Ok(lhs.collides(&v.0));
+        }
+        if let Some(v) = obj.downcast_ref::<PyConvexPolytope>() {
+            return Ok(lhs.collides(&v.0));
+        }
+        if let Some(v) = obj.downcast_ref::<PyConvexPolygon>() {
+            return Ok(lhs.collides(&v.0));
+        }
+        if let Some(v) = obj.downcast_ref::<PyLine>() {
+            return Ok(lhs.collides(&v.0));
+        }
+        if let Some(v) = obj.downcast_ref::<PyRay>() {
+            return Ok(lhs.collides(&v.0));
+        }
+        if let Some(v) = obj.downcast_ref::<PyLineSegment>() {
+            return Ok(lhs.collides(&v.0));
+        }
+        if let Some(v) = obj.downcast_ref::<PyPlane>() {
+            return Ok(lhs.collides(&v.0));
+        }
         if obj.downcast_ref::<PyPointcloud>().is_some() {
-            return Err(vm.new_value_error(
-                "Pointcloud-Pointcloud collision is not supported".to_owned(),
-            ));
+            return Err(
+                vm.new_value_error("Pointcloud-Pointcloud collision is not supported".to_owned())
+            );
         }
         Err(vm.new_type_error("collides() expects a shape".to_owned()))
     }

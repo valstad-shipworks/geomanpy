@@ -757,7 +757,9 @@ mod rustpython_impl {
         fn from_cols_array(m: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
             let xs: Vec<f64> = m.try_to_value(vm)?;
             if xs.len() != 16 {
-                return Err(vm.new_value_error("Mat4.from_cols_array expects 16 elements".to_owned()));
+                return Err(
+                    vm.new_value_error("Mat4.from_cols_array expects 16 elements".to_owned())
+                );
             }
             let mut arr = [0.0; 16];
             arr.copy_from_slice(&xs);
@@ -1060,7 +1062,12 @@ mod rustpython_impl {
 
         #[pymethod]
         fn to_cols_array(&self, vm: &VirtualMachine) -> PyObjectRef {
-            let items = self.0.to_cols_array().iter().map(|v| vm.ctx.new_float(*v).into()).collect();
+            let items = self
+                .0
+                .to_cols_array()
+                .iter()
+                .map(|v| vm.ctx.new_float(*v).into())
+                .collect();
             vm.ctx.new_list(items).into()
         }
         #[pymethod]

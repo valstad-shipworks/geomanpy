@@ -87,8 +87,8 @@ mod rustpython_impl {
         Py, PyObjectRef, PyResult, VirtualMachine,
         builtins::PyType,
         function::FuncArgs,
-        pyclass,
         protocol::PyMappingMethods,
+        pyclass,
         types::{AsMapping, Constructor, Representable},
     };
     use wreck::Sphere;
@@ -118,10 +118,15 @@ mod rustpython_impl {
                     use rustpython_vm::PyPayload;
                     let z = PySphereCollection::mapping_downcast(m);
                     let n = z.0.len() as isize;
-                    let i = <isize as rustpython_vm::TryFromObject>::try_from_object(vm, needle.to_owned())?;
+                    let i = <isize as rustpython_vm::TryFromObject>::try_from_object(
+                        vm,
+                        needle.to_owned(),
+                    )?;
                     let idx = if i < 0 { i + n } else { i };
                     if idx < 0 || idx >= n {
-                        return Err(vm.new_index_error("SphereCollection index out of range".to_owned()));
+                        return Err(
+                            vm.new_index_error("SphereCollection index out of range".to_owned())
+                        );
                     }
                     Ok(PySphere(z.0.get(idx as usize)).into_pyobject(vm))
                 }),
@@ -189,11 +194,20 @@ mod rustpython_impl {
             Self(SpheresSoA::new())
         }
         #[pymethod]
-        fn abs_diff_eq(&self, other: PyObjectRef, max_abs_diff: f64, vm: &VirtualMachine) -> PyResult<bool> {
+        fn abs_diff_eq(
+            &self,
+            other: PyObjectRef,
+            max_abs_diff: f64,
+            vm: &VirtualMachine,
+        ) -> PyResult<bool> {
             let o = other
                 .downcast_ref::<PySphereCollection>()
                 .ok_or_else(|| vm.new_type_error("expected SphereCollection".to_owned()))?;
-            Ok(approx::AbsDiffEq::abs_diff_eq(&self.0, &o.0, max_abs_diff as f32))
+            Ok(approx::AbsDiffEq::abs_diff_eq(
+                &self.0,
+                &o.0,
+                max_abs_diff as f32,
+            ))
         }
         #[pymethod]
         fn __getnewargs_ex__(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {

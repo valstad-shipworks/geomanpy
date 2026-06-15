@@ -170,11 +170,20 @@ mod rustpython_impl {
             Ok(vm.ctx.new_list(items).into())
         }
         #[pymethod]
-        fn abs_diff_eq(&self, other: PyObjectRef, max_abs_diff: f64, vm: &VirtualMachine) -> PyResult<bool> {
+        fn abs_diff_eq(
+            &self,
+            other: PyObjectRef,
+            max_abs_diff: f64,
+            vm: &VirtualMachine,
+        ) -> PyResult<bool> {
             let o = other
                 .downcast_ref::<PySphere>()
                 .ok_or_else(|| vm.new_type_error("expected Sphere".to_owned()))?;
-            Ok(approx::AbsDiffEq::abs_diff_eq(&self.0, &o.0, max_abs_diff as f32))
+            Ok(approx::AbsDiffEq::abs_diff_eq(
+                &self.0,
+                &o.0,
+                max_abs_diff as f32,
+            ))
         }
         #[pymethod]
         fn __getnewargs_ex__(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
