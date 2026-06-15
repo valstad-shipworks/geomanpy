@@ -2,6 +2,9 @@
 // matches their Python name (UPPER_CASE) — silence the snake_case lint for
 // those, scoped to this crate. Standard Rust methods are still checked.
 #![cfg_attr(feature = "rustpython-backend", allow(non_snake_case))]
+// `to_*` wrappers must take `&self` to be callable from Python, and the
+// extract/return signatures of the binding glue are inherently verbose.
+#![allow(clippy::wrong_self_convention, clippy::type_complexity)]
 
 //! geomanpy — Python bindings for `glam` and `wreck`.
 //!
@@ -42,11 +45,15 @@ pub mod glam_wrappers;
 #[cfg(feature = "not_build_only")]
 pub mod wreck_wrappers;
 
-// pyo3-only helpers: pickle (uses pyo3 types), dataclass macro (uses pyo3 types).
+// Serialization helpers. `pickle` exposes backend-agnostic serde-pickle
+// encode/decode plus pyo3-gated `__getnewargs_ex__` glue; `dataclass` is
+// pyo3-only; `rp_serde` is the rustpython counterpart.
 #[cfg(all(feature = "not_build_only", feature = "pyo3-backend"))]
 pub mod dataclass;
-#[cfg(all(feature = "not_build_only", feature = "pyo3-backend"))]
+#[cfg(feature = "not_build_only")]
 pub mod pickle;
+#[cfg(all(feature = "not_build_only", feature = "rustpython-backend"))]
+pub mod rp_serde;
 
 // PyO3 entry point.
 #[cfg(all(feature = "not_build_only", feature = "pyo3-backend"))]

@@ -134,6 +134,44 @@ impl From<EulerRot> for PyEulerRot {
 #[rustpython_vm::pyclass]
 impl PyEulerRot {}
 
+/// Expose the rotation-order variants as class attributes (`EulerRot.ZYX`, …).
+/// RustPython has no enum-pyclass macro, so they're installed onto the static
+/// type post-creation, like the vector/matrix constants.
+#[cfg(feature = "rustpython-backend")]
+pub(crate) fn install_euler_constants(
+    typ: &rustpython_vm::builtins::PyTypeRef,
+    vm: &rustpython_vm::VirtualMachine,
+) {
+    use rustpython_vm::PyPayload;
+    let set = |name: &str, v: PyEulerRot| {
+        typ.set_attr(vm.ctx.intern_str(name), v.into_pyobject(vm));
+    };
+    set("ZYX", PyEulerRot::ZYX);
+    set("ZXY", PyEulerRot::ZXY);
+    set("YXZ", PyEulerRot::YXZ);
+    set("YZX", PyEulerRot::YZX);
+    set("XYZ", PyEulerRot::XYZ);
+    set("XZY", PyEulerRot::XZY);
+    set("ZYZ", PyEulerRot::ZYZ);
+    set("ZXZ", PyEulerRot::ZXZ);
+    set("YXY", PyEulerRot::YXY);
+    set("YZY", PyEulerRot::YZY);
+    set("XYX", PyEulerRot::XYX);
+    set("XZX", PyEulerRot::XZX);
+    set("ZYXEx", PyEulerRot::ZYXEx);
+    set("ZXYEx", PyEulerRot::ZXYEx);
+    set("YXZEx", PyEulerRot::YXZEx);
+    set("YZXEx", PyEulerRot::YZXEx);
+    set("XYZEx", PyEulerRot::XYZEx);
+    set("XZYEx", PyEulerRot::XZYEx);
+    set("ZYZEx", PyEulerRot::ZYZEx);
+    set("ZXZEx", PyEulerRot::ZXZEx);
+    set("YXYEx", PyEulerRot::YXYEx);
+    set("YZYEx", PyEulerRot::YZYEx);
+    set("XYXEx", PyEulerRot::XYXEx);
+    set("XZXEx", PyEulerRot::XZXEx);
+}
+
 // =============================================================================
 // pyo3-backend: macros + numpy helpers + register()
 // =============================================================================
@@ -308,9 +346,7 @@ pub(crate) mod rustpython_numpy {
     ) -> PyResult<[f64; N]> {
         let arr: ArrayD<f64> = obj_to_typed::<f64>(obj, vm)?;
         if arr.shape() != [N] {
-            return Err(vm.new_value_error(format!(
-                "{type_name}.from_numpy expected shape ({N},)"
-            )));
+            return Err(vm.new_value_error(format!("{type_name}.from_numpy expected shape ({N},)")));
         }
         let mut out = [0.0; N];
         for (dst, src) in out.iter_mut().zip(arr.iter()) {
@@ -329,9 +365,9 @@ pub(crate) mod rustpython_numpy {
     ) -> PyResult<[[f64; C]; R]> {
         let arr: ArrayD<f64> = obj_to_typed::<f64>(obj, vm)?;
         if arr.shape() != [R, C] {
-            return Err(vm.new_value_error(format!(
-                "{type_name}.from_numpy expected shape ({R}, {C})"
-            )));
+            return Err(
+                vm.new_value_error(format!("{type_name}.from_numpy expected shape ({R}, {C})"))
+            );
         }
         let mut out = [[0.0; C]; R];
         for r in 0..R {
@@ -374,13 +410,12 @@ pub(crate) mod rustpython_numpy {
         vm: &VirtualMachine,
     ) -> PyObjectRef {
         let mut flat = Vec::with_capacity(R * C);
-        for r in 0..R {
-            for c in 0..C {
-                flat.push(rows[r][c]);
+        for row in rows {
+            for val in row {
+                flat.push(val);
             }
         }
-        let arr = ArrayD::from_shape_vec(IxDyn(&[R, C]), flat)
-            .expect("shape matches data length");
+        let arr = ArrayD::from_shape_vec(IxDyn(&[R, C]), flat).expect("shape matches data length");
         PyNdArray::from_arrays(ArraysD::F64(arr)).into_pyobject(vm)
     }
 }
@@ -388,9 +423,173 @@ pub(crate) mod rustpython_numpy {
 #[cfg(feature = "rustpython-backend")]
 pub(crate) use rustpython_numpy::{
     extract_numpy_matrix as extract_numpy_matrix_rp,
-    extract_numpy_vector as extract_numpy_vector_rp,
-    pyndarray_from_rows, pyndarray_from_slice, transpose_array2 as transpose_array2_rp,
+    extract_numpy_vector as extract_numpy_vector_rp, pyndarray_from_rows, pyndarray_from_slice,
+    transpose_array2 as transpose_array2_rp,
 };
+
+// =============================================================================
+// rustpython-backend: operator / comparison / hash / sequence slot helpers
+// =============================================================================
+
+#[cfg(feature = "rustpython-backend")]
+pub(crate) mod rp_ops {
+    use rustpython_vm::{
+        PyObject, PyObjectRef, PyPayload, PyResult, TryFromObject, VirtualMachine,
+        protocol::PyNumber, types::AsNumber,
+    };
+
+    /// A glam vector wrapper that supports scalar-broadcast arithmetic.
+    pub trait RpVec: PyPayload + std::fmt::Debug + Sized {
+        type Inner: Copy;
+        fn inner(&self) -> Self::Inner;
+        fn wrap(i: Self::Inner) -> Self;
+        fn splat(s: f64) -> Self::Inner;
+    }
+
+    /// Number-protocol binary slot: coerce both operands (wrapper or scalar)
+    /// and apply `op`, or return `NotImplemented`.
+    pub fn binop<P: RpVec>(
+        a: &PyObject,
+        b: &PyObject,
+        vm: &VirtualMachine,
+        op: fn(P::Inner, P::Inner) -> P::Inner,
+    ) -> PyResult<PyObjectRef> {
+        let coerce = |o: &PyObject| -> Option<P::Inner> {
+            if let Some(v) = o.downcast_ref::<P>() {
+                Some(v.inner())
+            } else {
+                f64::try_from_object(vm, o.to_owned()).ok().map(P::splat)
+            }
+        };
+        match (coerce(a), coerce(b)) {
+            (Some(x), Some(y)) => Ok(P::wrap(op(x, y)).into_pyobject(vm)),
+            _ => Ok(vm.ctx.not_implemented()),
+        }
+    }
+
+    /// Number-protocol unary slot.
+    pub fn unaryop<P: RpVec + AsNumber>(
+        num: PyNumber<'_>,
+        vm: &VirtualMachine,
+        op: fn(P::Inner) -> P::Inner,
+    ) -> PyResult<PyObjectRef> {
+        let z = P::number_downcast(num);
+        Ok(P::wrap(op(z.inner())).into_pyobject(vm))
+    }
+}
+
+/// Generate `AsNumber` (`+ - * / %`, unary `- +`), `Comparable` (`== !=`),
+/// `Hashable`, and `AsMapping` (`len`, `[]`) for a glam vector wrapper whose
+/// inner type exposes `splat`, `to_array`, and the arithmetic operators.
+#[cfg(feature = "rustpython-backend")]
+macro_rules! impl_rp_vec_ops {
+    ($py:ty, $inner:ty, $n:literal) => {
+        impl $crate::glam_wrappers::rp_ops::RpVec for $py {
+            type Inner = $inner;
+            #[inline]
+            fn inner(&self) -> $inner {
+                self.0
+            }
+            #[inline]
+            fn wrap(i: $inner) -> Self {
+                Self(i)
+            }
+            #[inline]
+            fn splat(s: f64) -> $inner {
+                <$inner>::splat(s)
+            }
+        }
+
+        impl rustpython_vm::types::AsNumber for $py {
+            fn as_number() -> &'static rustpython_vm::protocol::PyNumberMethods {
+                static N: rustpython_vm::protocol::PyNumberMethods =
+                    rustpython_vm::protocol::PyNumberMethods {
+                        add: Some(|a, b, vm| {
+                            $crate::glam_wrappers::rp_ops::binop::<$py>(a, b, vm, |x, y| x + y)
+                        }),
+                        subtract: Some(|a, b, vm| {
+                            $crate::glam_wrappers::rp_ops::binop::<$py>(a, b, vm, |x, y| x - y)
+                        }),
+                        multiply: Some(|a, b, vm| {
+                            $crate::glam_wrappers::rp_ops::binop::<$py>(a, b, vm, |x, y| x * y)
+                        }),
+                        true_divide: Some(|a, b, vm| {
+                            $crate::glam_wrappers::rp_ops::binop::<$py>(a, b, vm, |x, y| x / y)
+                        }),
+                        remainder: Some(|a, b, vm| {
+                            $crate::glam_wrappers::rp_ops::binop::<$py>(a, b, vm, |x, y| x % y)
+                        }),
+                        negative: Some(|num, vm| {
+                            $crate::glam_wrappers::rp_ops::unaryop::<$py>(num, vm, |x| -x)
+                        }),
+                        positive: Some(|num, vm| {
+                            $crate::glam_wrappers::rp_ops::unaryop::<$py>(num, vm, |x| x)
+                        }),
+                        ..rustpython_vm::protocol::PyNumberMethods::NOT_IMPLEMENTED
+                    };
+                &N
+            }
+        }
+
+        impl rustpython_vm::types::Comparable for $py {
+            fn cmp(
+                zelf: &rustpython_vm::Py<Self>,
+                other: &rustpython_vm::PyObject,
+                op: rustpython_vm::types::PyComparisonOp,
+                _vm: &rustpython_vm::VirtualMachine,
+            ) -> rustpython_vm::PyResult<rustpython_vm::function::PyComparisonValue> {
+                op.eq_only(|| match other.downcast_ref::<$py>() {
+                    Some(o) => Ok(rustpython_vm::function::PyComparisonValue::Implemented(
+                        zelf.0 == o.0,
+                    )),
+                    None => Ok(rustpython_vm::function::PyComparisonValue::NotImplemented),
+                })
+            }
+        }
+
+        impl rustpython_vm::types::Hashable for $py {
+            fn hash(
+                zelf: &rustpython_vm::Py<Self>,
+                _vm: &rustpython_vm::VirtualMachine,
+            ) -> rustpython_vm::PyResult<rustpython_vm::common::hash::PyHash> {
+                use std::hash::{Hash, Hasher};
+                let mut h = std::collections::hash_map::DefaultHasher::new();
+                for c in zelf.0.to_array() {
+                    c.to_bits().hash(&mut h);
+                }
+                Ok(h.finish() as rustpython_vm::common::hash::PyHash)
+            }
+        }
+
+        impl rustpython_vm::types::AsMapping for $py {
+            fn as_mapping() -> &'static rustpython_vm::protocol::PyMappingMethods {
+                static M: rustpython_vm::protocol::PyMappingMethods =
+                    rustpython_vm::protocol::PyMappingMethods {
+                        length: Some(|_m, _vm| Ok($n)),
+                        subscript: Some(|m, needle, vm| {
+                            let z = <$py as rustpython_vm::types::AsMapping>::mapping_downcast(m);
+                            let arr = z.0.to_array();
+                            let i = <isize as rustpython_vm::TryFromObject>::try_from_object(
+                                vm,
+                                needle.to_owned(),
+                            )?;
+                            let n = arr.len() as isize;
+                            let idx = if i < 0 { i + n } else { i };
+                            if idx < 0 || idx >= n {
+                                return Err(vm.new_index_error("index out of range".to_owned()));
+                            }
+                            Ok(vm.ctx.new_float(arr[idx as usize]).into())
+                        }),
+                        ..rustpython_vm::protocol::PyMappingMethods::NOT_IMPLEMENTED
+                    };
+                &M
+            }
+        }
+    };
+}
+
+#[cfg(feature = "rustpython-backend")]
+pub(crate) use impl_rp_vec_ops;
 
 #[cfg(feature = "pyo3-backend")]
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
