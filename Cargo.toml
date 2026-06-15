@@ -1,11 +1,12 @@
 [package]
 name = "geomanpy"
-version = "0.1.3"
+version = "0.2.0"
 edition = "2024"
 license = "Apache-2.0"
 authors = ["Bowan Foryt <bowan@valstad.com>"]
 description = "Python bindings for glam and wreck, providing geometric/linalg primitives and collision detection."
 repository = "https://github.com/valstad-shipworks/geomanpy"
+readme = "README.md"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
