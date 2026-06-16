@@ -1,0 +1,219 @@
+//! Runtime smoke tests for the RustPython backend parity surface.
+#![cfg(all(feature = "rustpython-backend", feature = "not_build_only"))]
+
+use rustpython_vm::Interpreter;
+
+fn interp() -> Interpreter {
+    let b = Interpreter::builder(Default::default());
+    let def = geomanpy::rustpython_bindings::make_module(&b.ctx);
+    b.add_native_module(def).build()
+}
+
+fn run(source: &str) {
+    let interp = interp();
+    interp.enter(|vm| {
+        let scope = vm.new_scope_with_builtins();
+        let code = vm
+            .compile(source, rustpython_vm::compiler::Mode::Exec, "<test>".into())
+            .expect("compile");
+        if let Err(e) = vm.run_code_obj(code, scope) {
+            let mut s = String::new();
+            let _ = vm.write_exception(&mut s, &e);
+            panic!("run failed:\n{s}");
+        }
+    });
+}
+
+#[test]
+fn vec2_full_surface() {
+    run(r#"
+from geomanpy import Vec2
+
+v = Vec2(1.0, 2.0)
+assert v.x == 1.0 and v.y == 2.0
+assert len(v) == 2
+assert v[0] == 1.0 and v[1] == 2.0 and v[-1] == 2.0
+
+a = Vec2(1.0, 2.0) + Vec2(3.0, 4.0)
+assert a == Vec2(4.0, 6.0)
+assert a != Vec2(0.0, 0.0)
+assert (Vec2(2.0, 0.0) * 3.0) == Vec2(6.0, 0.0)
+assert (Vec2(6.0, 4.0) / 2.0) == Vec2(3.0, 2.0)
+assert (-Vec2(1.0, -2.0)) == Vec2(-1.0, 2.0)
+assert (Vec2(10.0, 10.0) - Vec2(1.0, 2.0)) == Vec2(9.0, 8.0)
+
+assert Vec2.ZERO == Vec2(0.0, 0.0)
+assert Vec2.ONE == Vec2(1.0, 1.0)
+assert Vec2.X == Vec2(1.0, 0.0)
+
+assert repr(Vec2(1.0, 2.0)) == "Vec2(1, 2)"
+assert str(Vec2(1.0, 2.0)) == "[1, 2]"
+assert abs(Vec2(3.0, 4.0).length() - 5.0) < 1e-9
+assert Vec2(1.0, 2.0).dot(Vec2(3.0, 4.0)) == 11.0
+assert Vec2(1.0, 2.0).extend(3.0).z == 3.0
+
+# hashable -> usable as dict key / set member
+d = {Vec2(1.0, 2.0): "p"}
+assert d[Vec2(1.0, 2.0)] == "p"
+
+# pickle round-trip through __getnewargs_ex__
+_, kwargs = Vec2(1.5, -2.5).__getnewargs_ex__()
+assert Vec2(**kwargs) == Vec2(1.5, -2.5)
+
+# dataclass fields attribute exists (may be empty if stdlib dataclasses absent)
+_ = Vec2(1.0, 2.0).__dataclass_fields__
+"#);
+}
+
+#[test]
+fn vec3_vec4_surface() {
+    run(r#"
+from geomanpy import Vec3, Vec4
+
+a = Vec3(1.0, 2.0, 3.0)
+assert len(a) == 3 and a[2] == 3.0 and a[-1] == 3.0
+assert (a + Vec3(1.0, 1.0, 1.0)) == Vec3(2.0, 3.0, 4.0)
+assert (a * 2.0) == Vec3(2.0, 4.0, 6.0)
+assert Vec3.ZERO == Vec3(0.0, 0.0, 0.0)
+assert Vec3.Z == Vec3(0.0, 0.0, 1.0)
+assert Vec3(1.0, 0.0, 0.0).cross(Vec3(0.0, 1.0, 0.0)) == Vec3(0.0, 0.0, 1.0)
+assert hash(Vec3(1.0, 2.0, 3.0)) == hash(Vec3(1.0, 2.0, 3.0))
+# serde round trips (Vec3 has json/dict)
+assert Vec3.from_json(a.to_json()) == a
+assert Vec3.from_dict(a.to_dict()) == a
+# pickle round trip
+_, kw = a.__getnewargs_ex__()
+assert Vec3(**kw) == a
+
+b = Vec4(1.0, 2.0, 3.0, 4.0)
+assert len(b) == 4 and b[3] == 4.0
+assert (b + Vec4(1.0, 1.0, 1.0, 1.0)) == Vec4(2.0, 3.0, 4.0, 5.0)
+assert Vec4.W == Vec4(0.0, 0.0, 0.0, 1.0)
+assert b.truncate() == Vec3(1.0, 2.0, 3.0)
+_, kw4 = b.__getnewargs_ex__()
+assert Vec4(**kw4) == b
+"#);
+}
+
+#[test]
+fn quat_mat_affine_surface() {
+    run(r#"
+from geomanpy import Quat, Mat3, Mat4, Affine3, Vec3
+
+# Quat: identity, multiplication, equality, hash, serde, pickle
+q = Quat.IDENTITY
+assert q == Quat.IDENTITY
+assert (q * q) == q
+assert (q * Vec3(1.0, 2.0, 3.0)) == Vec3(1.0, 2.0, 3.0)
+assert hash(q) == hash(Quat.IDENTITY)
+assert Quat.from_json(q.to_json()) == q
+assert Quat.from_dict(q.to_dict()) == q
+_, kw = q.__getnewargs_ex__()
+assert Quat(**kw) == q
+
+# Mat3
+m = Mat3.IDENTITY
+assert (m * m) == m
+assert (m * Vec3(1.0, 2.0, 3.0)) == Vec3(1.0, 2.0, 3.0)
+assert m == Mat3.IDENTITY
+assert Mat3.from_json(m.to_json()) == m
+_, kwm = m.__getnewargs_ex__()
+assert Mat3(**kwm) == m
+
+# Mat4 (no serde, but operators + pickle)
+m4 = Mat4.IDENTITY
+assert (m4 * m4) == m4
+assert m4 == Mat4.IDENTITY
+_, kwm4 = m4.__getnewargs_ex__()
+assert Mat4(**kwm4) == m4
+
+# Affine3
+af = Affine3.IDENTITY
+assert (af * af) == af
+assert af == Affine3.IDENTITY
+assert Affine3.from_json(af.to_json()) == af
+_, kwa = af.__getnewargs_ex__()
+assert Affine3(**kwa) == af
+
+# EulerRot variants are accessible and usable
+from geomanpy import EulerRot
+q2 = Quat.from_euler(EulerRot.XYZ, 0.1, 0.2, 0.3)
+ex, ey, ez = q2.to_euler(EulerRot.XYZ)
+assert abs(ex - 0.1) < 1e-6 and abs(ey - 0.2) < 1e-6 and abs(ez - 0.3) < 1e-6
+"#);
+}
+
+#[test]
+fn sphere_wreck_surface() {
+    run(r#"
+from geomanpy import Sphere, Vec3
+
+s = Sphere(Vec3(0.0, 0.0, 0.0), 1.0)
+assert s.radius == 1.0
+assert s.center == Vec3(0.0, 0.0, 0.0)
+
+# collides with a concrete shape
+near = Sphere(Vec3(0.5, 0.0, 0.0), 1.0)
+far = Sphere(Vec3(10.0, 0.0, 0.0), 1.0)
+assert s.collides(near) is True
+assert s.collides(far) is False
+
+# stretch returns a list of concrete shapes
+parts = s.stretch(Vec3(0.0, 0.0, 0.0))
+assert isinstance(parts, list) and len(parts) >= 1
+
+# abs_diff_eq
+assert s.abs_diff_eq(Sphere(Vec3(0.0, 0.0, 0.0), 1.0), 1e-6) is True
+
+# pickle round trip
+_, kw = s.__getnewargs_ex__()
+s2 = Sphere(**kw)
+assert s2.radius == 1.0 and s2.center == Vec3(0.0, 0.0, 0.0)
+
+# dataclass fields attribute exists
+_ = s.__dataclass_fields__
+"#);
+}
+
+#[test]
+fn wreck_containers_and_shapes() {
+    run(r#"
+from geomanpy import (
+    Capsule, Cuboid, Line, Pointcloud, Collider, SphereCollection, Sphere, Vec3,
+)
+
+# Capsule: collides + stretch + pickle
+cap = Capsule(Vec3(0.0, 0.0, 0.0), Vec3(0.0, 0.0, 2.0), 0.5)
+assert cap.collides(Sphere(Vec3(0.0, 0.0, 0.0), 1.0)) is True
+assert isinstance(cap.stretch(Vec3(1.0, 0.0, 0.0)), list)
+_, kw = cap.__getnewargs_ex__()
+assert Capsule(**kw).radius == 0.5
+
+# Pointcloud collides rejects pointcloud arg
+pc = Pointcloud.from_list([(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)], 0.1)
+try:
+    pc.collides(pc)
+    raise AssertionError("expected ValueError for pointcloud-pointcloud")
+except ValueError:
+    pass
+
+# SphereCollection: len/getitem/push(returns new)/any_collides_sphere/pickle
+sc = SphereCollection.from_slice([Sphere(Vec3(0.0, 0.0, 0.0), 1.0)])
+assert len(sc) == 1
+assert sc[0].radius == 1.0
+sc2 = sc.push(Sphere(Vec3(5.0, 0.0, 0.0), 1.0))
+assert len(sc2) == 2
+assert sc.any_collides_sphere(Sphere(Vec3(0.5, 0.0, 0.0), 1.0)) is True
+_, kwsc = sc.__getnewargs_ex__()
+assert len(SphereCollection(**kwsc)) == 1
+
+# Collider: add(returns new), collides, pickle, try_stretch_d
+col = Collider().add(Sphere(Vec3(0.0, 0.0, 0.0), 1.0))
+assert col.collides(Sphere(Vec3(0.5, 0.0, 0.0), 1.0)) is True
+assert col.mask() != 0
+_, kwc = col.__getnewargs_ex__()
+col2 = Collider(**kwc)
+assert col2.mask() == col.mask()
+_ = col.try_stretch_d(Vec3(1.0, 0.0, 0.0))
+"#);
+}

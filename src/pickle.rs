@@ -6,27 +6,45 @@
 //! the same `__pickle_state__` kwarg and, when present, reconstructs the inner
 //! value by decoding the bytes instead of using the normal positional args.
 
+#[cfg(feature = "pyo3-backend")]
 use pyo3::Bound;
+#[cfg(feature = "pyo3-backend")]
 use pyo3::PyResult;
+#[cfg(feature = "pyo3-backend")]
 use pyo3::Python;
+#[cfg(feature = "pyo3-backend")]
 use pyo3::exceptions::PyValueError;
+#[cfg(feature = "pyo3-backend")]
 use pyo3::types::{PyBytes, PyDict, PyDictMethods, PyTuple};
 
 #[inline]
-pub fn pickle_encode<T: serde::Serialize>(value: &T) -> PyResult<Vec<u8>> {
+pub fn pickle_encode_raw<T: serde::Serialize>(value: &T) -> Result<Vec<u8>, String> {
     serde_pickle::to_vec(value, serde_pickle::SerOptions::new())
-        .map_err(|e| PyValueError::new_err(format!("pickle encode failed: {e}")))
+        .map_err(|e| format!("pickle encode failed: {e}"))
 }
 
 #[inline]
-pub fn pickle_decode<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> PyResult<T> {
+pub fn pickle_decode_raw<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> Result<T, String> {
     serde_pickle::from_slice(bytes, serde_pickle::DeOptions::new())
-        .map_err(|e| PyValueError::new_err(format!("pickle decode failed: {e}")))
+        .map_err(|e| format!("pickle decode failed: {e}"))
+}
+
+#[cfg(feature = "pyo3-backend")]
+#[inline]
+pub fn pickle_encode<T: serde::Serialize>(value: &T) -> PyResult<Vec<u8>> {
+    pickle_encode_raw(value).map_err(PyValueError::new_err)
+}
+
+#[cfg(feature = "pyo3-backend")]
+#[inline]
+pub fn pickle_decode<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> PyResult<T> {
+    pickle_decode_raw(bytes).map_err(PyValueError::new_err)
 }
 
 /// Build the `(args, kwargs)` tuple returned by `__getnewargs_ex__`:
 /// empty positional args plus a `__pickle_state__` kwarg carrying the
 /// serde-pickle encoded bytes of `value`.
+#[cfg(feature = "pyo3-backend")]
 #[inline]
 pub fn make_getnewargs_ex<'py, T: serde::Serialize>(
     py: Python<'py>,

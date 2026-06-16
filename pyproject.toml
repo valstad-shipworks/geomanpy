@@ -5,6 +5,7 @@ build-backend = "maturin"
 [project]
 name = "geomanpy"
 requires-python = ">=3.7"
+readme = "README.md"
 dynamic = ["version"]
 
 [tool.maturin]

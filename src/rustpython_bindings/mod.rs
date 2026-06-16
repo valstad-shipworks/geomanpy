@@ -6,9 +6,7 @@
 
 /// Build the `_geomanpy` module definition for embedding into a
 /// [`rustpython_vm::Interpreter`].
-pub fn make_module(
-    ctx: &rustpython_vm::Context,
-) -> &'static rustpython_vm::builtins::PyModuleDef {
+pub fn make_module(ctx: &rustpython_vm::Context) -> &'static rustpython_vm::builtins::PyModuleDef {
     geomanpy_module::module_def(ctx)
 }
 
@@ -17,36 +15,52 @@ pub(crate) mod geomanpy_module {
     use rustpython_vm::{VirtualMachine, builtins::PyTypeRef, class::PyClassImpl};
 
     #[pyattr(name = "EulerRot")]
-    fn euler_rot_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::glam_wrappers::PyEulerRot::make_static_type()
+    fn euler_rot_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::glam_wrappers::PyEulerRot::make_static_type();
+        crate::glam_wrappers::install_euler_constants(&t, vm);
+        t
     }
     #[pyattr(name = "Vec2")]
-    fn vec2_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::glam_wrappers::PyDVec2::make_static_type()
+    fn vec2_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::glam_wrappers::PyDVec2::make_static_type();
+        crate::glam_wrappers::vec2::install_constants(&t, vm);
+        t
     }
     #[pyattr(name = "Vec3")]
-    fn vec3_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::glam_wrappers::PyDVec3::make_static_type()
+    fn vec3_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::glam_wrappers::PyDVec3::make_static_type();
+        crate::glam_wrappers::vec3::install_constants(&t, vm);
+        t
     }
     #[pyattr(name = "Vec4")]
-    fn vec4_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::glam_wrappers::PyDVec4::make_static_type()
+    fn vec4_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::glam_wrappers::PyDVec4::make_static_type();
+        crate::glam_wrappers::vec4::install_constants(&t, vm);
+        t
     }
     #[pyattr(name = "Quat")]
-    fn quat_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::glam_wrappers::PyDQuat::make_static_type()
+    fn quat_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::glam_wrappers::PyDQuat::make_static_type();
+        crate::glam_wrappers::quat::install_constants(&t, vm);
+        t
     }
     #[pyattr(name = "Mat3")]
-    fn mat3_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::glam_wrappers::PyDMat3::make_static_type()
+    fn mat3_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::glam_wrappers::PyDMat3::make_static_type();
+        crate::glam_wrappers::mat3::install_constants(&t, vm);
+        t
     }
     #[pyattr(name = "Mat4")]
-    fn mat4_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::glam_wrappers::PyDMat4::make_static_type()
+    fn mat4_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::glam_wrappers::PyDMat4::make_static_type();
+        crate::glam_wrappers::mat4::install_constants(&t, vm);
+        t
     }
     #[pyattr(name = "Affine3")]
-    fn affine3_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::glam_wrappers::PyDAffine3::make_static_type()
+    fn affine3_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::glam_wrappers::PyDAffine3::make_static_type();
+        crate::glam_wrappers::affine3::install_constants(&t, vm);
+        t
     }
 
     #[pyattr(name = "Sphere")]

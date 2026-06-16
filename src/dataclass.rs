@@ -14,10 +14,7 @@ use pyo3::types::{PyDict, PyList, PyString};
 /// Build a `__dataclass_fields__` dict for a type with the given field names
 /// by constructing an ad-hoc dataclass and stealing its `__dataclass_fields__`.
 /// Each field is typed as `typing.Any` with no default.
-pub fn make_dataclass_fields<'py>(
-    py: Python<'py>,
-    names: &[&str],
-) -> PyResult<Bound<'py, PyDict>> {
+pub fn make_dataclass_fields<'py>(py: Python<'py>, names: &[&str]) -> PyResult<Bound<'py, PyDict>> {
     let dataclasses = py.import("dataclasses")?;
     let make_dc = dataclasses.getattr("make_dataclass")?;
 
@@ -27,10 +24,14 @@ pub fn make_dataclass_fields<'py>(
     }
 
     let dummy = make_dc.call1(("_GeomanpyDataclassShape", fields_list))?;
-    let fields = dummy.getattr("__dataclass_fields__")?.cast_into::<PyDict>()
-        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!(
-            "make_dataclass did not expose __dataclass_fields__: {e}"
-        )))?;
+    let fields = dummy
+        .getattr("__dataclass_fields__")?
+        .cast_into::<PyDict>()
+        .map_err(|e| {
+            pyo3::exceptions::PyRuntimeError::new_err(format!(
+                "make_dataclass did not expose __dataclass_fields__: {e}"
+            ))
+        })?;
     Ok(fields)
 }
 
