@@ -321,7 +321,9 @@ mod pyo3_glue {
 // Re-export pyo3 helpers at module scope so wrapper files can `use super::*;`
 // as before (no churn in vec3.rs, mat3.rs, etc.).
 #[cfg(feature = "pyo3-backend")]
-pub use pyo3_glue::{array2_from_rows, extract_numpy_matrix, extract_numpy_vector, transpose_array2};
+pub use pyo3_glue::{
+    array2_from_rows, extract_numpy_matrix, extract_numpy_vector, transpose_array2,
+};
 #[cfg(feature = "pyo3-backend")]
 pub(crate) use pyo3_glue::{impl_serde_methods, impl_vec_constants, impl_vec_unary};
 

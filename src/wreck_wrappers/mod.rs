@@ -768,10 +768,7 @@ pub mod rustpython_glue {
             .map(|m| m.0)
             .ok_or_else(|| vm.new_type_error("expected Mat3".to_owned()))
     }
-    pub fn extract_affine3(
-        obj: &PyObjectRef,
-        vm: &VirtualMachine,
-    ) -> PyResult<glam::DAffine3> {
+    pub fn extract_affine3(obj: &PyObjectRef, vm: &VirtualMachine) -> PyResult<glam::DAffine3> {
         obj.downcast_ref::<PyDAffine3>()
             .map(|a| a.0)
             .ok_or_else(|| vm.new_type_error("expected Affine3".to_owned()))
@@ -849,11 +846,7 @@ pub mod rustpython_glue {
 
     /// Dispatch `lhs.collides(other)` where `other` is any concrete shape
     /// wrapper. Mirrors the pyo3 `impl_collides_all!` match.
-    pub fn shape_collides<S>(
-        lhs: &S,
-        obj: &PyObjectRef,
-        vm: &VirtualMachine,
-    ) -> PyResult<bool>
+    pub fn shape_collides<S>(lhs: &S, obj: &PyObjectRef, vm: &VirtualMachine) -> PyResult<bool>
     where
         S: wreck::Collides<Sphere>
             + wreck::Collides<Capsule>
