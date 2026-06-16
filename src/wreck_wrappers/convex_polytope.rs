@@ -12,7 +12,7 @@ use wreck::ConvexPolytope;
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone)]
-pub struct PyConvexPolytope(pub(crate) ConvexPolytope);
+pub struct PyConvexPolytope(pub ConvexPolytope);
 
 #[cfg(feature = "pyo3-backend")]
 mod pyo3_impl {

@@ -12,7 +12,7 @@ use wreck::Sphere;
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone, Copy)]
-pub struct PySphere(pub(crate) Sphere);
+pub struct PySphere(pub Sphere);
 
 #[cfg(feature = "pyo3-backend")]
 mod pyo3_impl {

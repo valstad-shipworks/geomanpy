@@ -12,7 +12,7 @@ use wreck::Pointcloud;
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone)]
-pub struct PyPointcloud(pub(crate) Pointcloud);
+pub struct PyPointcloud(pub Pointcloud);
 
 #[cfg(feature = "pyo3-backend")]
 mod pyo3_impl {

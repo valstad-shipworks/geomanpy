@@ -12,7 +12,7 @@ use wreck::Ray;
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone, Copy)]
-pub struct PyRay(pub(crate) Ray);
+pub struct PyRay(pub Ray);
 
 #[cfg(feature = "pyo3-backend")]
 mod pyo3_impl {

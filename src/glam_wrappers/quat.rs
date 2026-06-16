@@ -13,7 +13,7 @@ use glam::DQuat;
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
-pub struct PyDQuat(pub(crate) DQuat);
+pub struct PyDQuat(pub DQuat);
 
 impl From<DQuat> for PyDQuat {
     #[inline]

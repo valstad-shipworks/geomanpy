@@ -258,7 +258,7 @@ mod pyo3_glue {
     pub(crate) use impl_vec_unary;
 
     #[inline]
-    pub(crate) fn extract_numpy_vector<const N: usize>(
+    pub fn extract_numpy_vector<const N: usize>(
         array: PyArrayLike1<'_, f64, AllowTypeChange>,
         type_name: &str,
     ) -> PyResult<[f64; N]> {
@@ -276,7 +276,7 @@ mod pyo3_glue {
     }
 
     #[inline]
-    pub(crate) fn extract_numpy_matrix<const R: usize, const C: usize>(
+    pub fn extract_numpy_matrix<const R: usize, const C: usize>(
         array: PyArrayLike2<'_, f64, AllowTypeChange>,
         type_name: &str,
     ) -> PyResult<[[f64; C]; R]> {
@@ -296,7 +296,7 @@ mod pyo3_glue {
     }
 
     #[inline]
-    pub(crate) fn transpose_array2<const R: usize, const C: usize>(
+    pub fn transpose_array2<const R: usize, const C: usize>(
         matrix: [[f64; C]; R],
     ) -> [[f64; R]; C] {
         let mut out = [[0.0; R]; C];
@@ -309,7 +309,7 @@ mod pyo3_glue {
     }
 
     #[inline]
-    pub(crate) fn array2_from_rows<'py, const R: usize, const C: usize>(
+    pub fn array2_from_rows<'py, const R: usize, const C: usize>(
         py: Python<'py>,
         rows: [[f64; C]; R],
     ) -> Bound<'py, PyArray2<f64>> {
@@ -321,10 +321,11 @@ mod pyo3_glue {
 // Re-export pyo3 helpers at module scope so wrapper files can `use super::*;`
 // as before (no churn in vec3.rs, mat3.rs, etc.).
 #[cfg(feature = "pyo3-backend")]
-pub(crate) use pyo3_glue::{
-    array2_from_rows, extract_numpy_matrix, extract_numpy_vector, impl_serde_methods,
-    impl_vec_constants, impl_vec_unary, transpose_array2,
+pub use pyo3_glue::{
+    array2_from_rows, extract_numpy_matrix, extract_numpy_vector, transpose_array2,
 };
+#[cfg(feature = "pyo3-backend")]
+pub(crate) use pyo3_glue::{impl_serde_methods, impl_vec_constants, impl_vec_unary};
 
 // =============================================================================
 // rustpython-backend: numpy interop helpers via the `rumpy` crate
@@ -339,7 +340,7 @@ pub(crate) mod rustpython_numpy {
     /// Coerce any python object (list/tuple/ndarray/scalar) into a fixed-length
     /// `[f64; N]`. Mirrors `extract_numpy_vector` on the pyo3 side.
     #[inline]
-    pub(crate) fn extract_numpy_vector<const N: usize>(
+    pub fn extract_numpy_vector<const N: usize>(
         obj: &PyObjectRef,
         type_name: &str,
         vm: &VirtualMachine,
@@ -358,7 +359,7 @@ pub(crate) mod rustpython_numpy {
     /// Coerce any python object into a fixed-shape `[[f64; C]; R]`. Mirrors
     /// `extract_numpy_matrix` on the pyo3 side.
     #[inline]
-    pub(crate) fn extract_numpy_matrix<const R: usize, const C: usize>(
+    pub fn extract_numpy_matrix<const R: usize, const C: usize>(
         obj: &PyObjectRef,
         type_name: &str,
         vm: &VirtualMachine,
@@ -382,7 +383,7 @@ pub(crate) mod rustpython_numpy {
     /// `to_cols_array_2d()` and numpy's row-major view. Mirrors
     /// `transpose_array2` on the pyo3 side.
     #[inline]
-    pub(crate) fn transpose_array2<const R: usize, const C: usize>(
+    pub fn transpose_array2<const R: usize, const C: usize>(
         matrix: [[f64; C]; R],
     ) -> [[f64; R]; C] {
         let mut out = [[0.0; R]; C];
@@ -396,7 +397,7 @@ pub(crate) mod rustpython_numpy {
 
     /// Build a 1-D `numpy.ndarray` (rumpy `PyNdArray`) from a slice of f64.
     #[inline]
-    pub(crate) fn pyndarray_from_slice(values: &[f64], vm: &VirtualMachine) -> PyObjectRef {
+    pub fn pyndarray_from_slice(values: &[f64], vm: &VirtualMachine) -> PyObjectRef {
         let arr = ArrayD::from_shape_vec(IxDyn(&[values.len()]), values.to_vec())
             .expect("shape matches data length");
         PyNdArray::from_arrays(ArraysD::F64(arr)).into_pyobject(vm)
@@ -405,7 +406,7 @@ pub(crate) mod rustpython_numpy {
     /// Build a 2-D `numpy.ndarray` (rumpy `PyNdArray`) from a row-major fixed
     /// matrix. Mirrors `array2_from_rows` on the pyo3 side.
     #[inline]
-    pub(crate) fn pyndarray_from_rows<const R: usize, const C: usize>(
+    pub fn pyndarray_from_rows<const R: usize, const C: usize>(
         rows: [[f64; C]; R],
         vm: &VirtualMachine,
     ) -> PyObjectRef {
@@ -421,7 +422,7 @@ pub(crate) mod rustpython_numpy {
 }
 
 #[cfg(feature = "rustpython-backend")]
-pub(crate) use rustpython_numpy::{
+pub use rustpython_numpy::{
     extract_numpy_matrix as extract_numpy_matrix_rp,
     extract_numpy_vector as extract_numpy_vector_rp, pyndarray_from_rows, pyndarray_from_slice,
     transpose_array2 as transpose_array2_rp,

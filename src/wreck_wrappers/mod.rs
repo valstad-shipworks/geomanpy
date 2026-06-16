@@ -246,7 +246,7 @@ impl_from_wreck!(PyCollider, Collider<Pointcloud>);
 // =============================================================================
 
 #[cfg(feature = "pyo3-backend")]
-pub(crate) mod pyo3_glue {
+pub mod pyo3_glue {
     use super::*;
     use crate::glam_wrappers::PyDVec3;
     use glam::Vec3;
@@ -254,12 +254,12 @@ pub(crate) mod pyo3_glue {
     use pyo3::prelude::*;
 
     #[inline]
-    pub(crate) fn dv3(v: PyDVec3) -> Vec3 {
+    pub fn dv3(v: PyDVec3) -> Vec3 {
         v.0.as_vec3()
     }
 
     #[inline]
-    pub(crate) fn v3d(v: Vec3) -> PyDVec3 {
+    pub fn v3d(v: Vec3) -> PyDVec3 {
         PyDVec3(glam::DVec3::new(v.x as f64, v.y as f64, v.z as f64))
     }
 
@@ -747,31 +747,28 @@ pub fn register(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()
 // =============================================================================
 
 #[cfg(feature = "rustpython-backend")]
-pub(crate) mod rustpython_glue {
+pub mod rustpython_glue {
     use super::*;
     use crate::glam_wrappers::{PyDAffine3, PyDMat3, PyDVec3};
     use glam::Vec3;
     use rustpython_vm::{PyObjectRef, PyResult, VirtualMachine};
 
     #[inline]
-    pub(crate) fn dv3(v: glam::DVec3) -> Vec3 {
+    pub fn dv3(v: glam::DVec3) -> Vec3 {
         v.as_vec3()
     }
 
     #[inline]
-    pub(crate) fn v3d(v: Vec3) -> PyDVec3 {
+    pub fn v3d(v: Vec3) -> PyDVec3 {
         PyDVec3(glam::DVec3::new(v.x as f64, v.y as f64, v.z as f64))
     }
 
-    pub(crate) fn extract_mat3(obj: &PyObjectRef, vm: &VirtualMachine) -> PyResult<glam::DMat3> {
+    pub fn extract_mat3(obj: &PyObjectRef, vm: &VirtualMachine) -> PyResult<glam::DMat3> {
         obj.downcast_ref::<PyDMat3>()
             .map(|m| m.0)
             .ok_or_else(|| vm.new_type_error("expected Mat3".to_owned()))
     }
-    pub(crate) fn extract_affine3(
-        obj: &PyObjectRef,
-        vm: &VirtualMachine,
-    ) -> PyResult<glam::DAffine3> {
+    pub fn extract_affine3(obj: &PyObjectRef, vm: &VirtualMachine) -> PyResult<glam::DAffine3> {
         obj.downcast_ref::<PyDAffine3>()
             .map(|a| a.0)
             .ok_or_else(|| vm.new_type_error("expected Affine3".to_owned()))
@@ -780,7 +777,7 @@ pub(crate) mod rustpython_glue {
     impl AnyShape {
         /// Recognize any concrete shape Python object and lift it into an
         /// [`AnyShape`] — the single rustpython dispatch entry point.
-        pub(crate) fn try_from_object(obj: &PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+        pub fn try_from_object(obj: &PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
             if let Some(v) = obj.downcast_ref::<PySphere>() {
                 return Ok(AnyShape::Sphere(PySphere(v.0)));
             }
@@ -821,7 +818,7 @@ pub(crate) mod rustpython_glue {
     }
 
     /// Lift any shape Python object and push it into the collider.
-    pub(crate) fn add_to_collider(
+    pub fn add_to_collider(
         c: &mut Collider<Pointcloud>,
         obj: &PyObjectRef,
         vm: &VirtualMachine,
@@ -832,7 +829,7 @@ pub(crate) mod rustpython_glue {
 
     /// Test a collider against any shape Python object. A `Pointcloud` query is
     /// rejected, mirroring the pyo3 backend.
-    pub(crate) fn shape_collides_collider(
+    pub fn shape_collides_collider(
         c: &Collider<Pointcloud>,
         obj: &PyObjectRef,
         vm: &VirtualMachine,
@@ -849,11 +846,7 @@ pub(crate) mod rustpython_glue {
 
     /// Dispatch `lhs.collides(other)` where `other` is any concrete shape
     /// wrapper. Mirrors the pyo3 `impl_collides_all!` match.
-    pub(crate) fn shape_collides<S>(
-        lhs: &S,
-        obj: &PyObjectRef,
-        vm: &VirtualMachine,
-    ) -> PyResult<bool>
+    pub fn shape_collides<S>(lhs: &S, obj: &PyObjectRef, vm: &VirtualMachine) -> PyResult<bool>
     where
         S: wreck::Collides<Sphere>
             + wreck::Collides<Capsule>
@@ -872,7 +865,7 @@ pub(crate) mod rustpython_glue {
 
     /// Like [`shape_collides`] but rejects a `Pointcloud` argument — used by
     /// `Pointcloud.collides` (pointcloud-vs-pointcloud is unsupported).
-    pub(crate) fn shape_collides_no_pcl<S>(
+    pub fn shape_collides_no_pcl<S>(
         lhs: &S,
         obj: &PyObjectRef,
         vm: &VirtualMachine,

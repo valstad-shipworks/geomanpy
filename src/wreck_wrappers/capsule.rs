@@ -12,7 +12,7 @@ use wreck::Capsule;
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone, Copy)]
-pub struct PyCapsule(pub(crate) Capsule);
+pub struct PyCapsule(pub Capsule);
 
 #[cfg(feature = "pyo3-backend")]
 mod pyo3_impl {

@@ -13,7 +13,7 @@ use glam::DAffine3;
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
-pub struct PyDAffine3(pub(crate) DAffine3);
+pub struct PyDAffine3(pub DAffine3);
 
 impl From<DAffine3> for PyDAffine3 {
     #[inline]

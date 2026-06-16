@@ -1,6 +1,6 @@
 [package]
 name = "geomanpy"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 license = "Apache-2.0"
 authors = ["Bowan Foryt <bowan@valstad.com>"]
@@ -30,9 +30,12 @@ numpy = { version = "0.28.0", optional = true }
 pyo3 = { version = "0.28.3", features = ["abi3-py37", "multiple-pymethods"], optional = true }
 pythonize = { version = "0.28.0", optional = true }
 
-rustpython-vm = { version = "0.5.0", optional = true }
+rustpython-vm = { version = "0.5.0", optional = true, default-features = false }
 rumpy = { version = "0.1.0", optional = true }
 ndarray = { version = "0.17.2", optional = true }
+
+[dev-dependencies]
+rustpython-vm = { version = "0.5.0", default-features = false, features = ["compiler"] }
 
 [profile.release]
 opt-level = 2
