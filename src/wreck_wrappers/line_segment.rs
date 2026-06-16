@@ -12,7 +12,7 @@ use wreck::LineSegment;
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone, Copy)]
-pub struct PyLineSegment(pub(crate) LineSegment);
+pub struct PyLineSegment(pub LineSegment);
 
 #[cfg(feature = "pyo3-backend")]
 mod pyo3_impl {

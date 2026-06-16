@@ -16,7 +16,7 @@ use glam::DVec3;
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
-pub struct PyDVec3(pub(crate) DVec3);
+pub struct PyDVec3(pub DVec3);
 
 impl From<DVec3> for PyDVec3 {
     #[inline]

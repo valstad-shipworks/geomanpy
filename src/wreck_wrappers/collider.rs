@@ -12,7 +12,7 @@ use wreck::{Collider, Pointcloud};
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone)]
-pub struct PyCollider(pub(crate) Collider<Pointcloud>);
+pub struct PyCollider(pub Collider<Pointcloud>);
 
 #[cfg(feature = "pyo3-backend")]
 mod pyo3_impl {

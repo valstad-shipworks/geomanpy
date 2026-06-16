@@ -12,7 +12,7 @@ use wreck::Line;
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone, Copy)]
-pub struct PyLine(pub(crate) Line);
+pub struct PyLine(pub Line);
 
 #[cfg(feature = "pyo3-backend")]
 mod pyo3_impl {

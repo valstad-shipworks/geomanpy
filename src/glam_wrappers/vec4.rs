@@ -13,7 +13,7 @@ use glam::DVec4;
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
-pub struct PyDVec4(pub(crate) DVec4);
+pub struct PyDVec4(pub DVec4);
 
 impl From<DVec4> for PyDVec4 {
     #[inline]

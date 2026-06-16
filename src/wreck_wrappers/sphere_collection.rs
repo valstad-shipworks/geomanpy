@@ -12,7 +12,7 @@ use wreck::soa::SpheresSoA;
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone)]
-pub struct PySphereCollection(pub(crate) SpheresSoA);
+pub struct PySphereCollection(pub SpheresSoA);
 
 #[cfg(feature = "pyo3-backend")]
 mod pyo3_impl {

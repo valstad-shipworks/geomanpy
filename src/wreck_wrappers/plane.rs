@@ -12,7 +12,7 @@ use wreck::Plane;
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone, Copy)]
-pub struct PyPlane(pub(crate) Plane);
+pub struct PyPlane(pub Plane);
 
 #[cfg(feature = "pyo3-backend")]
 mod pyo3_impl {

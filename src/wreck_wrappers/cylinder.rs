@@ -12,7 +12,7 @@ use wreck::Cylinder;
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone, Copy)]
-pub struct PyCylinder(pub(crate) Cylinder);
+pub struct PyCylinder(pub Cylinder);
 
 #[cfg(feature = "pyo3-backend")]
 mod pyo3_impl {

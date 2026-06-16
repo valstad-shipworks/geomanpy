@@ -13,7 +13,7 @@ use glam::DMat3;
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
-pub struct PyDMat3(pub(crate) DMat3);
+pub struct PyDMat3(pub DMat3);
 
 impl From<DMat3> for PyDMat3 {
     #[inline]

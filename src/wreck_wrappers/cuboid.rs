@@ -12,7 +12,7 @@ use wreck::Cuboid;
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone, Copy)]
-pub struct PyCuboid(pub(crate) Cuboid);
+pub struct PyCuboid(pub Cuboid);
 
 #[cfg(feature = "pyo3-backend")]
 mod pyo3_impl {
