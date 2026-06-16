@@ -8,7 +8,7 @@ use wreck::Pointcloud;
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
-    rustpython_vm::pyclass(module = "_geomanpy", name = "Pointcloud")
+    rustpython_vm::pyclass(module = "geomanpy", name = "Pointcloud")
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone)]

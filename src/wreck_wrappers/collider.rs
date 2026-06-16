@@ -8,7 +8,7 @@ use wreck::{Collider, Pointcloud};
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
-    rustpython_vm::pyclass(module = "_geomanpy", name = "Collider")
+    rustpython_vm::pyclass(module = "geomanpy", name = "Collider")
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone)]
@@ -19,10 +19,9 @@ mod pyo3_impl {
     use super::*;
     use crate::glam_wrappers::PyDVec3;
     use crate::pickle::pickle_decode;
-    use crate::wreck_wrappers::pyo3_glue::push_shape_into;
     use crate::wreck_wrappers::{
-        PyCapsule, PyConvexPolygon, PyConvexPolytope, PyCuboid, PyCylinder, PyLine, PyLineSegment,
-        PyPlane, PyPointcloud, PyRay, PyShape, PySphereCollection,
+        AnyShape, PyCapsule, PyConvexPolygon, PyConvexPolytope, PyCuboid, PyCylinder, PyLine,
+        PyLineSegment, PyPlane, PyPointcloud, PyRay, PyShape, PySphereCollection,
     };
     use pyo3::PyResult;
     use pyo3::prelude::*;
@@ -38,27 +37,17 @@ mod pyo3_impl {
             Ok(Self(Collider::new()))
         }
         fn add(&mut self, shape: PyShape) {
-            push_shape_into(&mut self.0, shape);
+            AnyShape::from(shape).push_into(&mut self.0);
         }
         fn include(&mut self, other: PyCollider) {
             self.0.include(other.0);
         }
-        fn collides(&self, shape: &PyShape) -> PyResult<bool> {
-            match shape {
-                PyShape::Sphere(s) => Ok(self.0.collides(&s.0)),
-                PyShape::Capsule(c) => Ok(self.0.collides(&c.0)),
-                PyShape::Cuboid(c) => Ok(self.0.collides(&c.0)),
-                PyShape::Cylinder(c) => Ok(self.0.collides(&c.0)),
-                PyShape::ConvexPolytope(p) => Ok(self.0.collides(&p.0)),
-                PyShape::ConvexPolygon(p) => Ok(self.0.collides(&p.0)),
-                PyShape::Line(l) => Ok(self.0.collides(&l.0)),
-                PyShape::Ray(r) => Ok(self.0.collides(&r.0)),
-                PyShape::LineSegment(s) => Ok(self.0.collides(&s.0)),
-                PyShape::Plane(p) => Ok(self.0.collides(&p.0)),
-                PyShape::Pointcloud(_) => Err(pyo3::exceptions::PyValueError::new_err(
+        fn collides(&self, shape: PyShape) -> PyResult<bool> {
+            AnyShape::from(shape).query_collider(&self.0).ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(
                     "Pointcloud cannot query a Collider<Pointcloud>; use individual shape queries instead",
-                )),
-            }
+                )
+            })
         }
         fn collides_other(&self, other: &PyCollider) -> bool {
             self.0.collides_other(&other.0)

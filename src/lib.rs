@@ -10,7 +10,7 @@
 //!
 //! Backend is selected by feature flag:
 //! - `pyo3-backend` (default): produces a CPython extension via PyO3.
-//! - `rustpython-backend`: registers a `_geomanpy` module inside an embedded
+//! - `rustpython-backend`: registers a `geomanpy` module inside an embedded
 //!   RustPython VM. The original wrapper structs (`PyDVec3`, `PySphere`, …)
 //!   are reused — they're decorated with both pyclass macros via `cfg_attr`
 //!   and carry separate impl blocks for each backend's method conventions.
@@ -71,7 +71,7 @@ fn geomanpy(m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(all(feature = "not_build_only", feature = "rustpython-backend"))]
 pub mod rustpython_bindings;
 
-/// Return the `_geomanpy` module definition for embedding in a
+/// Return the `geomanpy` module definition for embedding in a
 /// [`rustpython_vm::Interpreter`].
 #[cfg(all(feature = "not_build_only", feature = "rustpython-backend"))]
 pub use rustpython_bindings::make_module;

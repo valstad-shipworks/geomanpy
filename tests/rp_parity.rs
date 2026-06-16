@@ -217,3 +217,81 @@ assert col2.mask() == col.mask()
 _ = col.try_stretch_d(Vec3(1.0, 0.0, 0.0))
 "#);
 }
+
+#[test]
+fn any_shape_dispatch() {
+    run(r#"
+from geomanpy import Sphere, Capsule, Collider, Pointcloud, Vec3
+
+s = Sphere(Vec3(0.0, 0.0, 0.0), 1.0)
+cap = Capsule(Vec3(0.0, 0.0, 0.0), Vec3(0.0, 0.0, 2.0), 0.5)
+
+# A single method accepts different concrete shape kinds and dispatches.
+assert s.collides(s) is True
+assert s.collides(cap) is True
+
+# Collider queried against assorted shapes through the same path.
+col = Collider().add(s).add(cap)
+assert col.collides(s) is True
+
+# A Collider<Pointcloud> rejects a Pointcloud query (ValueError, like pyo3).
+pc = Pointcloud.from_list([(0.0, 0.0, 0.0)], 0.1)
+try:
+    col.collides(pc)
+    raise AssertionError("expected ValueError for collider-vs-pointcloud")
+except ValueError:
+    pass
+
+# A non-shape argument is rejected rather than silently mishandled.
+try:
+    s.collides(Vec3(0.0, 0.0, 0.0))
+    raise AssertionError("expected an error for a non-shape argument")
+except (TypeError, ValueError):
+    pass
+"#);
+}
+
+#[test]
+fn shape_base_type_is_exposed() {
+    run(r#"
+from geomanpy import Shape, Sphere, Vec3
+
+# Shape is a registered, importable type, matching the pyo3 backend.
+assert isinstance(Shape, type)
+assert Shape.__name__ == "Shape"
+
+# stretch() yields concrete shapes directly; the Shape base is nominal
+# (declared in the type stubs), so no runtime subclassing is involved.
+parts = Sphere(Vec3(0.0, 0.0, 0.0), 1.0).stretch(Vec3(0.0, 0.0, 0.0))
+assert isinstance(parts, list) and len(parts) >= 1
+"#);
+}
+
+#[test]
+fn domain_aliases_resolve_natively() {
+    run(r#"
+# The embedded module must expose the same public names as the CPython
+# package facade, with no __init__.py layered on top.
+from geomanpy import (
+    Quaternion, Rotation3d, Translation3d, Transform3d,
+    Box3d, Sphere3d, Cylinder3d, ObstacleUnion, PointCloud,
+)
+from geomanpy import Quat, Mat3, Vec3, Affine3, Cuboid, Sphere, Cylinder, Collider, Pointcloud
+
+# Each alias is the very same type object as its canonical name.
+assert Quaternion is Quat
+assert Rotation3d is Mat3
+assert Translation3d is Vec3
+assert Transform3d is Affine3
+assert Box3d is Cuboid
+assert Sphere3d is Sphere
+assert Cylinder3d is Cylinder
+assert ObstacleUnion is Collider
+assert PointCloud is Pointcloud
+
+# And they are usable for construction through the alias.
+assert Quaternion.IDENTITY == Quat.IDENTITY
+assert Translation3d(1.0, 2.0, 3.0) == Vec3(1.0, 2.0, 3.0)
+assert Sphere3d(Vec3(0.0, 0.0, 0.0), 1.0).radius == 1.0
+"#);
+}

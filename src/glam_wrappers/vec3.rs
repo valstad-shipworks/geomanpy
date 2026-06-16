@@ -11,7 +11,7 @@ use glam::DVec3;
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
-    rustpython_vm::pyclass(module = "_geomanpy", name = "Vec3")
+    rustpython_vm::pyclass(module = "geomanpy", name = "Vec3")
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[repr(transparent)]

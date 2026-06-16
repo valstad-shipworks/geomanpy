@@ -8,7 +8,7 @@ use glam::DMat3;
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
-    rustpython_vm::pyclass(module = "_geomanpy", name = "Mat3")
+    rustpython_vm::pyclass(module = "geomanpy", name = "Mat3")
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[repr(transparent)]
