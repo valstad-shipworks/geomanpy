@@ -8,7 +8,7 @@ use wreck::Cylinder;
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
-    rustpython_vm::pyclass(module = "_geomanpy", name = "Cylinder")
+    rustpython_vm::pyclass(module = "geomanpy", name = "Cylinder")
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone, Copy)]

@@ -8,7 +8,7 @@ use wreck::soa::SpheresSoA;
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
-    rustpython_vm::pyclass(module = "_geomanpy", name = "SphereCollection")
+    rustpython_vm::pyclass(module = "geomanpy", name = "SphereCollection")
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone)]

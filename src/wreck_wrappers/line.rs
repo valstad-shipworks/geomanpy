@@ -8,7 +8,7 @@ use wreck::Line;
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
-    rustpython_vm::pyclass(module = "_geomanpy", name = "Line")
+    rustpython_vm::pyclass(module = "geomanpy", name = "Line")
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone, Copy)]

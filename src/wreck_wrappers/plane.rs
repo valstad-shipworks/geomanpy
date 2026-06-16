@@ -8,7 +8,7 @@ use wreck::Plane;
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
-    rustpython_vm::pyclass(module = "_geomanpy", name = "Plane")
+    rustpython_vm::pyclass(module = "geomanpy", name = "Plane")
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone, Copy)]

@@ -38,9 +38,10 @@ pub use ray::PyRay;
 pub use sphere::PySphere;
 pub use sphere_collection::PySphereCollection;
 
-// PyShape: pyo3 enum exposed as a tagged class. RustPython doesn't have a
-// direct equivalent (no pyclass-on-enum macro), so we only define the enum
-// under pyo3 — rustpython users construct concrete shapes directly.
+// `Shape` is the nominal base of every concrete shape (see the type stubs).
+// Neither backend makes the shapes true runtime subclasses; `Shape` exists as a
+// registered class for API parity, while shapes are passed and returned
+// directly via the dispatch helpers below. Under pyo3 it's a tagged enum.
 #[cfg(feature = "pyo3-backend")]
 #[pyo3::pyclass(frozen, skip_from_py_object, name = "Shape")]
 #[derive(Debug, Clone)]
@@ -56,6 +57,149 @@ pub enum PyShape {
     LineSegment(PyLineSegment),
     Plane(PyPlane),
     Pointcloud(PyPointcloud),
+}
+
+// RustPython has no pyclass-on-enum macro, so `Shape` is a payload-less marker
+// class there.
+#[cfg(feature = "rustpython-backend")]
+#[rustpython_vm::pyclass(module = "geomanpy", name = "Shape")]
+#[derive(Debug, Clone, rustpython_vm::PyPayload)]
+pub struct PyShape;
+
+#[cfg(feature = "rustpython-backend")]
+mod rustpython_shape {
+    use super::PyShape;
+    use rustpython_vm::{PyObjectRef, VirtualMachine, pyclass};
+
+    #[pyclass]
+    impl PyShape {
+        #[pymethod]
+        fn __dataclass_fields__(&self, vm: &VirtualMachine) -> PyObjectRef {
+            crate::rp_serde::dataclass_fields(&[], vm)
+        }
+    }
+}
+
+/// A single concrete shape — the backend-agnostic union every Python shape
+/// converts into. Both backends produce one of these (pyo3 via `From<PyShape>`
+/// / `FromPyObject`, rustpython via [`AnyShape::try_from_object`]) so a Rust
+/// method can accept any shape and dispatch with a single `match`. Unlike
+/// [`Collider`], which aggregates many shapes, an `AnyShape` holds exactly one.
+#[cfg(feature = "not_build_only")]
+#[derive(Debug, Clone)]
+pub enum AnyShape {
+    Sphere(PySphere),
+    Capsule(PyCapsule),
+    Cuboid(PyCuboid),
+    Cylinder(PyCylinder),
+    ConvexPolytope(PyConvexPolytope),
+    ConvexPolygon(PyConvexPolygon),
+    Line(PyLine),
+    Ray(PyRay),
+    LineSegment(PyLineSegment),
+    Plane(PyPlane),
+    Pointcloud(PyPointcloud),
+}
+
+#[cfg(feature = "not_build_only")]
+impl AnyShape {
+    /// Move the held shape into a collider.
+    pub fn push_into(self, collider: &mut Collider<Pointcloud>) {
+        match self {
+            AnyShape::Sphere(s) => collider.add(s.0),
+            AnyShape::Capsule(c) => collider.add(c.0),
+            AnyShape::Cuboid(c) => collider.add(c.0),
+            AnyShape::Cylinder(c) => collider.add(c.0),
+            AnyShape::ConvexPolytope(p) => collider.add(p.0),
+            AnyShape::ConvexPolygon(p) => collider.add(p.0),
+            AnyShape::Line(l) => collider.add(l.0),
+            AnyShape::Ray(r) => collider.add(r.0),
+            AnyShape::LineSegment(s) => collider.add(s.0),
+            AnyShape::Plane(p) => collider.add(p.0),
+            AnyShape::Pointcloud(p) => collider.add(p.0),
+        }
+    }
+
+    /// Evaluate `lhs.collides(held)` for an `lhs` that collides against every
+    /// shape kind.
+    pub fn collides_with<S>(&self, lhs: &S) -> bool
+    where
+        S: wreck::Collides<Sphere>
+            + wreck::Collides<Capsule>
+            + wreck::Collides<Cuboid>
+            + wreck::Collides<Cylinder>
+            + wreck::Collides<ConvexPolytope>
+            + wreck::Collides<ConvexPolygon>
+            + wreck::Collides<Line>
+            + wreck::Collides<Ray>
+            + wreck::Collides<LineSegment>
+            + wreck::Collides<Plane>
+            + wreck::Collides<Pointcloud>,
+    {
+        match self {
+            AnyShape::Sphere(s) => lhs.collides(&s.0),
+            AnyShape::Capsule(c) => lhs.collides(&c.0),
+            AnyShape::Cuboid(c) => lhs.collides(&c.0),
+            AnyShape::Cylinder(c) => lhs.collides(&c.0),
+            AnyShape::ConvexPolytope(p) => lhs.collides(&p.0),
+            AnyShape::ConvexPolygon(p) => lhs.collides(&p.0),
+            AnyShape::Line(l) => lhs.collides(&l.0),
+            AnyShape::Ray(r) => lhs.collides(&r.0),
+            AnyShape::LineSegment(s) => lhs.collides(&s.0),
+            AnyShape::Plane(p) => lhs.collides(&p.0),
+            AnyShape::Pointcloud(p) => lhs.collides(&p.0),
+        }
+    }
+
+    /// Like [`AnyShape::collides_with`], but for an `lhs` that cannot collide
+    /// against a `Pointcloud`. Returns `None` when the held shape is a
+    /// `Pointcloud`, leaving the caller to raise a suitable error.
+    pub fn collides_with_no_pcl<S>(&self, lhs: &S) -> Option<bool>
+    where
+        S: wreck::Collides<Sphere>
+            + wreck::Collides<Capsule>
+            + wreck::Collides<Cuboid>
+            + wreck::Collides<Cylinder>
+            + wreck::Collides<ConvexPolytope>
+            + wreck::Collides<ConvexPolygon>
+            + wreck::Collides<Line>
+            + wreck::Collides<Ray>
+            + wreck::Collides<LineSegment>
+            + wreck::Collides<Plane>,
+    {
+        Some(match self {
+            AnyShape::Sphere(s) => lhs.collides(&s.0),
+            AnyShape::Capsule(c) => lhs.collides(&c.0),
+            AnyShape::Cuboid(c) => lhs.collides(&c.0),
+            AnyShape::Cylinder(c) => lhs.collides(&c.0),
+            AnyShape::ConvexPolytope(p) => lhs.collides(&p.0),
+            AnyShape::ConvexPolygon(p) => lhs.collides(&p.0),
+            AnyShape::Line(l) => lhs.collides(&l.0),
+            AnyShape::Ray(r) => lhs.collides(&r.0),
+            AnyShape::LineSegment(s) => lhs.collides(&s.0),
+            AnyShape::Plane(p) => lhs.collides(&p.0),
+            AnyShape::Pointcloud(_) => return None,
+        })
+    }
+
+    /// Query a collider against the held shape, using `Collider`'s inherent
+    /// collision method. Returns `None` for a `Pointcloud`, which a
+    /// `Collider<Pointcloud>` cannot be queried with.
+    pub fn query_collider(&self, collider: &Collider<Pointcloud>) -> Option<bool> {
+        Some(match self {
+            AnyShape::Sphere(s) => collider.collides(&s.0),
+            AnyShape::Capsule(c) => collider.collides(&c.0),
+            AnyShape::Cuboid(c) => collider.collides(&c.0),
+            AnyShape::Cylinder(c) => collider.collides(&c.0),
+            AnyShape::ConvexPolytope(p) => collider.collides(&p.0),
+            AnyShape::ConvexPolygon(p) => collider.collides(&p.0),
+            AnyShape::Line(l) => collider.collides(&l.0),
+            AnyShape::Ray(r) => collider.collides(&r.0),
+            AnyShape::LineSegment(s) => collider.collides(&s.0),
+            AnyShape::Plane(p) => collider.collides(&p.0),
+            AnyShape::Pointcloud(_) => return None,
+        })
+    }
 }
 
 macro_rules! impl_from_wreck {
@@ -194,19 +338,39 @@ pub(crate) mod pyo3_glue {
         }
     }
 
-    pub(crate) fn push_shape_into(collider: &mut Collider<Pointcloud>, shape: PyShape) {
-        match shape {
-            PyShape::Sphere(s) => collider.add(s.0),
-            PyShape::Capsule(c) => collider.add(c.0),
-            PyShape::Cuboid(c) => collider.add(c.0),
-            PyShape::Cylinder(c) => collider.add(c.0),
-            PyShape::ConvexPolytope(p) => collider.add(p.0),
-            PyShape::ConvexPolygon(p) => collider.add(p.0),
-            PyShape::Line(l) => collider.add(l.0),
-            PyShape::Ray(r) => collider.add(r.0),
-            PyShape::LineSegment(s) => collider.add(s.0),
-            PyShape::Plane(p) => collider.add(p.0),
-            PyShape::Pointcloud(p) => collider.add(p.0),
+    impl From<PyShape> for AnyShape {
+        fn from(s: PyShape) -> Self {
+            match s {
+                PyShape::Sphere(v) => AnyShape::Sphere(v),
+                PyShape::Capsule(v) => AnyShape::Capsule(v),
+                PyShape::Cuboid(v) => AnyShape::Cuboid(v),
+                PyShape::Cylinder(v) => AnyShape::Cylinder(v),
+                PyShape::ConvexPolytope(v) => AnyShape::ConvexPolytope(v),
+                PyShape::ConvexPolygon(v) => AnyShape::ConvexPolygon(v),
+                PyShape::Line(v) => AnyShape::Line(v),
+                PyShape::Ray(v) => AnyShape::Ray(v),
+                PyShape::LineSegment(v) => AnyShape::LineSegment(v),
+                PyShape::Plane(v) => AnyShape::Plane(v),
+                PyShape::Pointcloud(v) => AnyShape::Pointcloud(v),
+            }
+        }
+    }
+
+    impl From<AnyShape> for PyShape {
+        fn from(s: AnyShape) -> Self {
+            match s {
+                AnyShape::Sphere(v) => PyShape::Sphere(v),
+                AnyShape::Capsule(v) => PyShape::Capsule(v),
+                AnyShape::Cuboid(v) => PyShape::Cuboid(v),
+                AnyShape::Cylinder(v) => PyShape::Cylinder(v),
+                AnyShape::ConvexPolytope(v) => PyShape::ConvexPolytope(v),
+                AnyShape::ConvexPolygon(v) => PyShape::ConvexPolygon(v),
+                AnyShape::Line(v) => PyShape::Line(v),
+                AnyShape::Ray(v) => PyShape::Ray(v),
+                AnyShape::LineSegment(v) => PyShape::LineSegment(v),
+                AnyShape::Plane(v) => PyShape::Plane(v),
+                AnyShape::Pointcloud(v) => PyShape::Pointcloud(v),
+            }
         }
     }
 
@@ -220,20 +384,20 @@ pub(crate) mod pyo3_glue {
                 return Ok(Self(Collider::<Pointcloud>::default()));
             }
             let mut collider = Collider::<Pointcloud>::default();
-            if let Ok(shape) = ob.extract::<PyShape>() {
-                push_shape_into(&mut collider, shape);
+            if let Ok(shape) = ob.extract::<AnyShape>() {
+                shape.push_into(&mut collider);
                 return Ok(Self(collider));
             }
             if let Ok(iter) = ob.try_iter() {
                 let mut any = false;
                 for item in iter {
                     let item = item?;
-                    let shape: PyShape = item.extract().map_err(|_| {
+                    let shape: AnyShape = item.extract().map_err(|_| {
                         pyo3::exceptions::PyTypeError::new_err(
                             "PyCollider: sequence item is not a Shape",
                         )
                     })?;
-                    push_shape_into(&mut collider, shape);
+                    shape.push_into(&mut collider);
                     any = true;
                 }
                 if any {
@@ -290,11 +454,11 @@ pub(crate) mod pyo3_glue {
         }
     }
 
-    impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyShape {
+    impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for AnyShape {
         type Error = pyo3::PyErr;
         fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
-            if let Ok(v) = ob.cast_exact::<Self>() {
-                return Ok(v.get().clone());
+            if let Ok(v) = ob.cast_exact::<PyShape>() {
+                return Ok(v.get().clone().into());
             }
             if let Ok(v) = ob.cast_exact::<PySphere>() {
                 return Ok(Self::Sphere(*v.get()));
@@ -368,6 +532,16 @@ pub(crate) mod pyo3_glue {
         }
     }
 
+    // `PyShape` accepts any shape as a function argument by reusing the
+    // `AnyShape` extraction, so a Rust signature can read `PyShape` and a bare
+    // `Cuboid`/`Sphere`/… from Python is converted into it.
+    impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyShape {
+        type Error = pyo3::PyErr;
+        fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
+            Ok(ob.extract::<AnyShape>()?.into())
+        }
+    }
+
     macro_rules! impl_transform_scale_py {
         ($ty:ty) => {
             #[pyo3::pymethods]
@@ -412,21 +586,8 @@ pub(crate) mod pyo3_glue {
         ($ty:ty) => {
             #[pyo3::pymethods]
             impl $ty {
-                fn collides(&self, other: &PyShape) -> bool {
-                    use wreck::Collides;
-                    match other {
-                        PyShape::Sphere(s) => self.0.collides(&s.0),
-                        PyShape::Capsule(c) => self.0.collides(&c.0),
-                        PyShape::Cuboid(c) => self.0.collides(&c.0),
-                        PyShape::Cylinder(c) => self.0.collides(&c.0),
-                        PyShape::ConvexPolytope(p) => self.0.collides(&p.0),
-                        PyShape::ConvexPolygon(p) => self.0.collides(&p.0),
-                        PyShape::Line(l) => self.0.collides(&l.0),
-                        PyShape::Ray(r) => self.0.collides(&r.0),
-                        PyShape::LineSegment(s) => self.0.collides(&s.0),
-                        PyShape::Plane(p) => self.0.collides(&p.0),
-                        PyShape::Pointcloud(p) => self.0.collides(&p.0),
-                    }
+                fn collides(&self, other: PyShape) -> bool {
+                    AnyShape::from(other).collides_with(&self.0)
                 }
             }
         };
@@ -436,23 +597,14 @@ pub(crate) mod pyo3_glue {
         ($ty:ty) => {
             #[pyo3::pymethods]
             impl $ty {
-                fn collides(&self, other: &PyShape) -> pyo3::PyResult<bool> {
-                    use wreck::Collides;
-                    match other {
-                        PyShape::Sphere(s) => Ok(self.0.collides(&s.0)),
-                        PyShape::Capsule(c) => Ok(self.0.collides(&c.0)),
-                        PyShape::Cuboid(c) => Ok(self.0.collides(&c.0)),
-                        PyShape::Cylinder(c) => Ok(self.0.collides(&c.0)),
-                        PyShape::ConvexPolytope(p) => Ok(self.0.collides(&p.0)),
-                        PyShape::ConvexPolygon(p) => Ok(self.0.collides(&p.0)),
-                        PyShape::Line(l) => Ok(self.0.collides(&l.0)),
-                        PyShape::Ray(r) => Ok(self.0.collides(&r.0)),
-                        PyShape::LineSegment(s) => Ok(self.0.collides(&s.0)),
-                        PyShape::Plane(p) => Ok(self.0.collides(&p.0)),
-                        PyShape::Pointcloud(_) => Err(pyo3::exceptions::PyValueError::new_err(
-                            "Pointcloud-Pointcloud collision is not supported",
-                        )),
-                    }
+                fn collides(&self, other: PyShape) -> pyo3::PyResult<bool> {
+                    AnyShape::from(other)
+                        .collides_with_no_pcl(&self.0)
+                        .ok_or_else(|| {
+                            pyo3::exceptions::PyValueError::new_err(
+                                "Pointcloud-Pointcloud collision is not supported",
+                            )
+                        })
                 }
             }
         };
@@ -625,99 +777,74 @@ pub(crate) mod rustpython_glue {
             .ok_or_else(|| vm.new_type_error("expected Affine3".to_owned()))
     }
 
-    /// Polymorphic shape dispatch — accepts any wrapper and pushes it into
-    /// the collider. Used by `PyCollider.add` and `PyCollider.collides`.
+    impl AnyShape {
+        /// Recognize any concrete shape Python object and lift it into an
+        /// [`AnyShape`] — the single rustpython dispatch entry point.
+        pub(crate) fn try_from_object(obj: &PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            if let Some(v) = obj.downcast_ref::<PySphere>() {
+                return Ok(AnyShape::Sphere(PySphere(v.0)));
+            }
+            if let Some(v) = obj.downcast_ref::<PyCapsule>() {
+                return Ok(AnyShape::Capsule(PyCapsule(v.0)));
+            }
+            if let Some(v) = obj.downcast_ref::<PyCuboid>() {
+                return Ok(AnyShape::Cuboid(PyCuboid(v.0)));
+            }
+            if let Some(v) = obj.downcast_ref::<PyCylinder>() {
+                return Ok(AnyShape::Cylinder(PyCylinder(v.0)));
+            }
+            if let Some(v) = obj.downcast_ref::<PyConvexPolytope>() {
+                return Ok(AnyShape::ConvexPolytope(PyConvexPolytope(v.0.clone())));
+            }
+            if let Some(v) = obj.downcast_ref::<PyConvexPolygon>() {
+                return Ok(AnyShape::ConvexPolygon(PyConvexPolygon(v.0.clone())));
+            }
+            if let Some(v) = obj.downcast_ref::<PyLine>() {
+                return Ok(AnyShape::Line(PyLine(v.0)));
+            }
+            if let Some(v) = obj.downcast_ref::<PyRay>() {
+                return Ok(AnyShape::Ray(PyRay(v.0)));
+            }
+            if let Some(v) = obj.downcast_ref::<PyLineSegment>() {
+                return Ok(AnyShape::LineSegment(PyLineSegment(v.0)));
+            }
+            if let Some(v) = obj.downcast_ref::<PyPlane>() {
+                return Ok(AnyShape::Plane(PyPlane(v.0)));
+            }
+            if let Some(v) = obj.downcast_ref::<PyPointcloud>() {
+                return Ok(AnyShape::Pointcloud(PyPointcloud(v.0.clone())));
+            }
+            Err(vm.new_type_error(
+                "expected a Shape (Sphere/Capsule/Cuboid/Cylinder/ConvexPolytope/ConvexPolygon/Line/Ray/LineSegment/Plane/Pointcloud)".to_owned()
+            ))
+        }
+    }
+
+    /// Lift any shape Python object and push it into the collider.
     pub(crate) fn add_to_collider(
         c: &mut Collider<Pointcloud>,
         obj: &PyObjectRef,
         vm: &VirtualMachine,
     ) -> PyResult<()> {
-        if let Some(v) = obj.downcast_ref::<PySphere>() {
-            c.add(v.0);
-            return Ok(());
-        }
-        if let Some(v) = obj.downcast_ref::<PyCapsule>() {
-            c.add(v.0);
-            return Ok(());
-        }
-        if let Some(v) = obj.downcast_ref::<PyCuboid>() {
-            c.add(v.0);
-            return Ok(());
-        }
-        if let Some(v) = obj.downcast_ref::<PyCylinder>() {
-            c.add(v.0);
-            return Ok(());
-        }
-        if let Some(v) = obj.downcast_ref::<PyConvexPolytope>() {
-            c.add(v.0.clone());
-            return Ok(());
-        }
-        if let Some(v) = obj.downcast_ref::<PyConvexPolygon>() {
-            c.add(v.0.clone());
-            return Ok(());
-        }
-        if let Some(v) = obj.downcast_ref::<PyLine>() {
-            c.add(v.0);
-            return Ok(());
-        }
-        if let Some(v) = obj.downcast_ref::<PyRay>() {
-            c.add(v.0);
-            return Ok(());
-        }
-        if let Some(v) = obj.downcast_ref::<PyLineSegment>() {
-            c.add(v.0);
-            return Ok(());
-        }
-        if let Some(v) = obj.downcast_ref::<PyPlane>() {
-            c.add(v.0);
-            return Ok(());
-        }
-        if let Some(v) = obj.downcast_ref::<PyPointcloud>() {
-            c.add(v.0.clone());
-            return Ok(());
-        }
-        Err(vm.new_type_error(
-            "expected a Shape (Sphere/Capsule/Cuboid/Cylinder/ConvexPolytope/ConvexPolygon/Line/Ray/LineSegment/Plane/Pointcloud)".to_owned()
-        ))
+        AnyShape::try_from_object(obj, vm)?.push_into(c);
+        Ok(())
     }
 
-    /// Polymorphic shape-vs-collider collision.
+    /// Test a collider against any shape Python object. A `Pointcloud` query is
+    /// rejected, mirroring the pyo3 backend.
     pub(crate) fn shape_collides_collider(
         c: &Collider<Pointcloud>,
         obj: &PyObjectRef,
         vm: &VirtualMachine,
     ) -> PyResult<bool> {
-        if let Some(v) = obj.downcast_ref::<PySphere>() {
-            return Ok(c.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyCapsule>() {
-            return Ok(c.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyCuboid>() {
-            return Ok(c.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyCylinder>() {
-            return Ok(c.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyConvexPolytope>() {
-            return Ok(c.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyConvexPolygon>() {
-            return Ok(c.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyLine>() {
-            return Ok(c.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyRay>() {
-            return Ok(c.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyLineSegment>() {
-            return Ok(c.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyPlane>() {
-            return Ok(c.collides(&v.0));
-        }
-        Err(vm.new_type_error("expected a Shape".to_owned()))
+        AnyShape::try_from_object(obj, vm)?
+            .query_collider(c)
+            .ok_or_else(|| {
+                vm.new_value_error(
+                    "Pointcloud cannot query a Collider<Pointcloud>; use individual shape queries instead"
+                        .to_owned(),
+                )
+            })
     }
 
     /// Dispatch `lhs.collides(other)` where `other` is any concrete shape
@@ -740,40 +867,7 @@ pub(crate) mod rustpython_glue {
             + wreck::Collides<Plane>
             + wreck::Collides<Pointcloud>,
     {
-        if let Some(v) = obj.downcast_ref::<PySphere>() {
-            return Ok(lhs.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyCapsule>() {
-            return Ok(lhs.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyCuboid>() {
-            return Ok(lhs.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyCylinder>() {
-            return Ok(lhs.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyConvexPolytope>() {
-            return Ok(lhs.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyConvexPolygon>() {
-            return Ok(lhs.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyLine>() {
-            return Ok(lhs.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyRay>() {
-            return Ok(lhs.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyLineSegment>() {
-            return Ok(lhs.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyPlane>() {
-            return Ok(lhs.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyPointcloud>() {
-            return Ok(lhs.collides(&v.0));
-        }
-        Err(vm.new_type_error("collides() expects a shape".to_owned()))
+        Ok(AnyShape::try_from_object(obj, vm)?.collides_with(lhs))
     }
 
     /// Like [`shape_collides`] but rejects a `Pointcloud` argument — used by
@@ -795,41 +889,10 @@ pub(crate) mod rustpython_glue {
             + wreck::Collides<LineSegment>
             + wreck::Collides<Plane>,
     {
-        if let Some(v) = obj.downcast_ref::<PySphere>() {
-            return Ok(lhs.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyCapsule>() {
-            return Ok(lhs.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyCuboid>() {
-            return Ok(lhs.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyCylinder>() {
-            return Ok(lhs.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyConvexPolytope>() {
-            return Ok(lhs.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyConvexPolygon>() {
-            return Ok(lhs.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyLine>() {
-            return Ok(lhs.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyRay>() {
-            return Ok(lhs.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyLineSegment>() {
-            return Ok(lhs.collides(&v.0));
-        }
-        if let Some(v) = obj.downcast_ref::<PyPlane>() {
-            return Ok(lhs.collides(&v.0));
-        }
-        if obj.downcast_ref::<PyPointcloud>().is_some() {
-            return Err(
+        AnyShape::try_from_object(obj, vm)?
+            .collides_with_no_pcl(lhs)
+            .ok_or_else(|| {
                 vm.new_value_error("Pointcloud-Pointcloud collision is not supported".to_owned())
-            );
-        }
-        Err(vm.new_type_error("collides() expects a shape".to_owned()))
+            })
     }
 }

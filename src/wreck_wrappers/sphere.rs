@@ -8,7 +8,7 @@ use wreck::Sphere;
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
-    rustpython_vm::pyclass(module = "_geomanpy", name = "Sphere")
+    rustpython_vm::pyclass(module = "geomanpy", name = "Sphere")
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone, Copy)]

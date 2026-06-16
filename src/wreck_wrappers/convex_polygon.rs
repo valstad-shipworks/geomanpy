@@ -8,7 +8,7 @@ use wreck::ConvexPolygon;
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
-    rustpython_vm::pyclass(module = "_geomanpy", name = "ConvexPolygon")
+    rustpython_vm::pyclass(module = "geomanpy", name = "ConvexPolygon")
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone)]

@@ -52,7 +52,7 @@ Convenience aliases are provided for common names: `Quaternion` (`Quat`), `Rotat
 `geomanpy` can target two Python runtimes, selected at build time by Cargo feature:
 
 - **`pyo3-backend`** (default) — builds a CPython extension module via [PyO3](https://pyo3.rs).
-- **`rustpython-backend`** — registers a `_geomanpy` module inside an embedded [RustPython](https://rustpython.github.io) VM, reusing the same wrapper types.
+- **`rustpython-backend`** — registers a `geomanpy` module inside an embedded [RustPython](https://rustpython.github.io) VM, reusing the same wrapper types.
 
 Exactly one backend must be active. The optional `safe-locks` feature switches mutable wrappers to RustPython's `PyRwLock`.
 

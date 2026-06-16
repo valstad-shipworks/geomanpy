@@ -4,7 +4,7 @@
 //! `crate::glam_wrappers::*` and `crate::wreck_wrappers::*`. This module
 //! exposes them under the `geomanpy` module name.
 
-/// Build the `_geomanpy` module definition for embedding into a
+/// Build the `geomanpy` module definition for embedding into a
 /// [`rustpython_vm::Interpreter`].
 pub fn make_module(ctx: &rustpython_vm::Context) -> &'static rustpython_vm::builtins::PyModuleDef {
     geomanpy_module::module_def(ctx)
@@ -114,5 +114,50 @@ pub(crate) mod geomanpy_module {
     #[pyattr(name = "Collider")]
     fn collider_type(_vm: &VirtualMachine) -> PyTypeRef {
         crate::wreck_wrappers::PyCollider::make_static_type()
+    }
+    #[pyattr(name = "Shape")]
+    fn shape_type(_vm: &VirtualMachine) -> PyTypeRef {
+        crate::wreck_wrappers::PyShape::make_static_type()
+    }
+
+    // Domain-name aliases, mirroring the pure-Python facade in
+    // `py_src/geomanpy/__init__.py` so an embedded module exposes the same
+    // public names as the CPython package without layering that facade on top.
+    // Each resolves to the same static type object as its canonical name.
+    #[pyattr(name = "Quaternion")]
+    fn quaternion_type(vm: &VirtualMachine) -> PyTypeRef {
+        quat_type(vm)
+    }
+    #[pyattr(name = "Rotation3d")]
+    fn rotation3d_type(vm: &VirtualMachine) -> PyTypeRef {
+        mat3_type(vm)
+    }
+    #[pyattr(name = "Translation3d")]
+    fn translation3d_type(vm: &VirtualMachine) -> PyTypeRef {
+        vec3_type(vm)
+    }
+    #[pyattr(name = "Transform3d")]
+    fn transform3d_type(vm: &VirtualMachine) -> PyTypeRef {
+        affine3_type(vm)
+    }
+    #[pyattr(name = "Box3d")]
+    fn box3d_type(vm: &VirtualMachine) -> PyTypeRef {
+        cuboid_type(vm)
+    }
+    #[pyattr(name = "Sphere3d")]
+    fn sphere3d_type(vm: &VirtualMachine) -> PyTypeRef {
+        sphere_type(vm)
+    }
+    #[pyattr(name = "Cylinder3d")]
+    fn cylinder3d_type(vm: &VirtualMachine) -> PyTypeRef {
+        cylinder_type(vm)
+    }
+    #[pyattr(name = "ObstacleUnion")]
+    fn obstacle_union_type(vm: &VirtualMachine) -> PyTypeRef {
+        collider_type(vm)
+    }
+    #[pyattr(name = "PointCloud")]
+    fn point_cloud_type(vm: &VirtualMachine) -> PyTypeRef {
+        pointcloud_type(vm)
     }
 }

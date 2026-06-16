@@ -35,7 +35,7 @@ use pyo3::prelude::*;
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
-    rustpython_vm::pyclass(module = "_geomanpy", name = "EulerRot")
+    rustpython_vm::pyclass(module = "geomanpy", name = "EulerRot")
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

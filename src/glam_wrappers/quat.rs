@@ -8,7 +8,7 @@ use glam::DQuat;
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
-    rustpython_vm::pyclass(module = "_geomanpy", name = "Quat")
+    rustpython_vm::pyclass(module = "geomanpy", name = "Quat")
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[repr(transparent)]

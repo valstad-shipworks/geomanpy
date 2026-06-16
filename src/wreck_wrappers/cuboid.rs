@@ -8,7 +8,7 @@ use wreck::Cuboid;
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
-    rustpython_vm::pyclass(module = "_geomanpy", name = "Cuboid")
+    rustpython_vm::pyclass(module = "geomanpy", name = "Cuboid")
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone, Copy)]
