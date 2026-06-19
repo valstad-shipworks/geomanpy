@@ -7,18 +7,18 @@ name: Publish
 # interpreter, packaging error, bad metadata) surfaces in CI before a tag is
 # cut. Only the upload jobs are gated on v* tags.
 #
-# Each platform is built three ways from one source: an `abi3` wheel pinned to
-# the minimum supported Python (cp310-abi3, the abi3 cargo feature), a
-# version-specific free-threaded `cp314t` wheel (3.14t predates the stable
-# free-threaded ABI), and an `abi3t` wheel (the abi3t cargo feature, PEP 803)
-# that covers free-threaded and GIL builds of Python 3.15 and newer. The abi3
-# flavor is selected by the cargo feature alone and needs no interpreter at
-# build time, but abi3t needs an interpreter present, and specifically one whose
-# version meets its abi3-py315 floor: native builds use abi3 forward-compat, but
-# cross builds pin the interpreter version and pyo3 rejects anything below 3.15.
-# So abi3t is built with `-i python3.15t` (3.15 is in beta; setup-python needs
-# allow-prereleases, and the manylinux containers ship it under /opt/python).
-# The cargo feature still controls the wheel tag, so this stays an abi3t wheel.
+# Every target builds on a runner of its own architecture — aarch64 Linux on
+# `ubuntu-24.04-arm` and aarch64 Windows on `windows-11-arm` — so nothing is
+# cross-compiled. Each platform is built three ways from one source: an `abi3`
+# wheel pinned to the minimum supported Python (cp310-abi3, the abi3 cargo
+# feature), a version-specific free-threaded `cp314t` wheel (3.14t predates the
+# stable free-threaded ABI), and an `abi3t` wheel (the abi3t cargo feature, PEP
+# 803) that covers free-threaded and GIL builds of Python 3.15 and newer. abi3
+# is selected by the cargo feature alone and needs no interpreter; abi3t needs
+# one present, so it is built with `-i python3.15t` (3.15 is in beta — the
+# non-Linux runners install it via setup-python with allow-prereleases, and the
+# manylinux containers ship it under /opt/python). The cargo feature controls
+# the wheel tag, so this stays an abi3t wheel.
 on:
   push:
     branches: [main]
@@ -36,10 +36,10 @@ jobs:
       matrix:
         platform:
           - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
-          - { os: ubuntu-latest, target: aarch64-unknown-linux-gnu }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
           - { os: macos-latest, target: aarch64-apple-darwin }
           - { os: windows-latest, target: x86_64-pc-windows-msvc }
-          - { os: windows-latest, target: aarch64-pc-windows-msvc }
+          - { os: windows-11-arm, target: aarch64-pc-windows-msvc }
         wheel:
           - { name: abi3, args: "-F abi3", python: "" }
           - { name: abi3t, args: "-F abi3t -i python3.15t", python: "3.15t" }
@@ -52,7 +52,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
-        if: matrix.wheel.python != '' && matrix.platform.os != 'ubuntu-latest'
+        if: matrix.wheel.python != '' && !contains(matrix.platform.target, 'linux')
         with:
           python-version: ${{ matrix.wheel.python }}
           allow-prereleases: true
