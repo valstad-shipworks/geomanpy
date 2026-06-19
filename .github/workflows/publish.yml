@@ -13,11 +13,12 @@ name: Publish
 # free-threaded ABI), and an `abi3t` wheel (the abi3t cargo feature, PEP 803)
 # that covers free-threaded and GIL builds of Python 3.15 and newer. The abi3
 # flavor is selected by the cargo feature alone and needs no interpreter at
-# build time, but abi3t does: maturin cannot resolve the abi3t build without a
-# free-threaded interpreter present (it errors "Couldn't find any python
-# interpreters" inside the manylinux containers and on cross targets), so abi3t
-# is built with `-i python3.14t` exactly like cp314t. The cargo feature still
-# controls the wheel tag, so this stays an abi3t wheel.
+# build time, but abi3t needs an interpreter present, and specifically one whose
+# version meets its abi3-py315 floor: native builds use abi3 forward-compat, but
+# cross builds pin the interpreter version and pyo3 rejects anything below 3.15.
+# So abi3t is built with `-i python3.15t` (3.15 is in beta; setup-python needs
+# allow-prereleases, and the manylinux containers ship it under /opt/python).
+# The cargo feature still controls the wheel tag, so this stays an abi3t wheel.
 on:
   push:
     branches: [main]
@@ -41,7 +42,7 @@ jobs:
           - { os: windows-latest, target: aarch64-pc-windows-msvc }
         wheel:
           - { name: abi3, args: "-F abi3", python: "" }
-          - { name: abi3t, args: "-F abi3t -i python3.14t", python: "3.14t" }
+          - { name: abi3t, args: "-F abi3t -i python3.15t", python: "3.15t" }
           - { name: cp314t, args: "-i python3.14t", python: "3.14t" }
 
     runs-on: ${{ matrix.platform.os }}
@@ -54,6 +55,7 @@ jobs:
         if: matrix.wheel.python != '' && matrix.platform.os != 'ubuntu-latest'
         with:
           python-version: ${{ matrix.wheel.python }}
+          allow-prereleases: true
 
       - uses: PyO3/maturin-action@v1
         with:
