@@ -12,8 +12,12 @@ name: Publish
 # version-specific free-threaded `cp314t` wheel (3.14t predates the stable
 # free-threaded ABI), and an `abi3t` wheel (the abi3t cargo feature, PEP 803)
 # that covers free-threaded and GIL builds of Python 3.15 and newer. The abi3
-# and abi3t flavors are selected by cargo feature alone, so neither needs its
-# target interpreter present at build time.
+# flavor is selected by the cargo feature alone and needs no interpreter at
+# build time, but abi3t does: maturin cannot resolve the abi3t build without a
+# free-threaded interpreter present (it errors "Couldn't find any python
+# interpreters" inside the manylinux containers and on cross targets), so abi3t
+# is built with `-i python3.14t` exactly like cp314t. The cargo feature still
+# controls the wheel tag, so this stays an abi3t wheel.
 on:
   push:
     branches: [main]
@@ -37,7 +41,7 @@ jobs:
           - { os: windows-latest, target: aarch64-pc-windows-msvc }
         wheel:
           - { name: abi3, args: "-F abi3", python: "" }
-          - { name: abi3t, args: "-F abi3t", python: "" }
+          - { name: abi3t, args: "-F abi3t -i python3.14t", python: "3.14t" }
           - { name: cp314t, args: "-i python3.14t", python: "3.14t" }
 
     runs-on: ${{ matrix.platform.os }}

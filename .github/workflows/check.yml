@@ -54,4 +54,11 @@ jobs:
         run: cargo clippy --target ${{ matrix.platform.target }} -F abi3 -- -D warnings
 
       - name: Tests
+        if: matrix.platform.target != 'x86_64-unknown-linux-musl'
         run: cargo test --target ${{ matrix.platform.target }}
+
+      # musl has no libpython to link, so the default pyo3-backend test binary
+      # can't be built there; exercise the pure-Rust core instead.
+      - name: Tests (no CPython link)
+        if: matrix.platform.target == 'x86_64-unknown-linux-musl'
+        run: cargo test --target ${{ matrix.platform.target }} --no-default-features
