@@ -10,52 +10,55 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - x86_64-unknown-linux-gnu
-          - aarch64-unknown-linux-gnu
-          - aarch64-apple-darwin
-          - x86_64-pc-windows-msvc
+        platform:
+          - { os: macos-latest, target: aarch64-apple-darwin }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc }
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-musl }
 
-    runs-on: ubuntu-latest
-    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.platform.os }}
+    name: ${{ matrix.platform.target }}
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: ${{ matrix.platform.target }}
           components: clippy
+
+      - name: Install musl tools
+        if: endsWith(matrix.platform.target, 'musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
-      - name: Install llvm-dlltool
-        if: contains(matrix.target, 'windows')
-        run: sudo apt-get update && sudo apt-get install -y llvm
-
       - uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.target }}
+          key: ${{ matrix.platform.target }}
 
       - name: Cargo check
-        run: cargo check --target ${{ matrix.target }}
+        run: cargo check --target ${{ matrix.platform.target }}
 
       - name: Clippy
-        run: cargo clippy --target ${{ matrix.target }} -- -D warnings
+        run: cargo clippy --target ${{ matrix.platform.target }} -- -D warnings
 
-      # The RustPython backend embeds an interpreter (psm/stacker need a C
-      # toolchain) and ships no cross-platform wheels, so it's only built on
-      # the native host rather than across every wheel target.
-      - name: Cargo check RustPython backend
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        run: cargo check --target ${{ matrix.target }} --no-default-features --features rustpython-backend,not_build_only
+      - name: Cargo check (abi3 wheel feature)
+        if: matrix.platform.target == 'x86_64-unknown-linux-gnu'
+        run: cargo check --target ${{ matrix.platform.target }} -F abi3
 
-      - name: Clippy RustPython backend
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        run: cargo clippy --target ${{ matrix.target }} --no-default-features --features rustpython-backend,not_build_only -- -D warnings
+      - name: Clippy (abi3 wheel feature)
+        if: matrix.platform.target == 'x86_64-unknown-linux-gnu'
+        run: cargo clippy --target ${{ matrix.platform.target }} -F abi3 -- -D warnings
 
       - name: Tests
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        run: cargo test --target ${{ matrix.target }}
+        if: matrix.platform.target != 'x86_64-unknown-linux-musl'
+        run: cargo test --target ${{ matrix.platform.target }}
+
+      # musl has no libpython to link, so the default pyo3-backend test binary
+      # can't be built there; exercise the pure-Rust core instead.
+      - name: Tests (no CPython link)
+        if: matrix.platform.target == 'x86_64-unknown-linux-musl'
+        run: cargo test --target ${{ matrix.platform.target }} --no-default-features
