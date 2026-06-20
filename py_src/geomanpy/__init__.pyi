@@ -1393,7 +1393,7 @@ class SphereCollection:
 class Collider:
     __dataclass_fields__: _DataclassFields
 
-    _AnyObstacle = Shape | Collider | Iterable[Shape | Collider] | None
+    _AnyObstacle = Shape | "Collider" | Iterable[Shape | "Collider"] | None
 
     def __init__(self) -> None: ...
     @staticmethod
