@@ -53,20 +53,10 @@ mod pyo3_impl {
                 return Ok(*v.get());
             }
             let py = ob.py();
-            let cols: (
-                (f64, f64, f64, f64),
-                (f64, f64, f64, f64),
-                (f64, f64, f64, f64),
-                (f64, f64, f64, f64),
-            ) = ob
-                .call_method0(pyo3::intern!(py, "to_cols_array_2d"))?
+            let cols: [f64; 16] = ob
+                .call_method0(pyo3::intern!(py, "to_cols_array"))?
                 .extract()?;
-            Ok(Self(glam::DMat4::from_cols(
-                glam::DVec4::new(cols.0.0, cols.0.1, cols.0.2, cols.0.3),
-                glam::DVec4::new(cols.1.0, cols.1.1, cols.1.2, cols.1.3),
-                glam::DVec4::new(cols.2.0, cols.2.1, cols.2.2, cols.2.3),
-                glam::DVec4::new(cols.3.0, cols.3.1, cols.3.2, cols.3.3),
-            )))
+            Ok(Self(glam::DMat4::from_cols_array(&cols)))
         }
     }
 

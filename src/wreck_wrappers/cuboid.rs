@@ -84,6 +84,15 @@ mod pyo3_impl {
             ]
         }
         #[getter]
+        fn orientation(&self) -> PyDMat3 {
+            let a = &self.0.axes;
+            PyDMat3(glam::DMat3::from_cols(
+                glam::DVec3::new(a[0].x as f64, a[0].y as f64, a[0].z as f64),
+                glam::DVec3::new(a[1].x as f64, a[1].y as f64, a[1].z as f64),
+                glam::DVec3::new(a[2].x as f64, a[2].y as f64, a[2].z as f64),
+            ))
+        }
+        #[getter]
         fn half_extents(&self) -> [f64; 3] {
             [
                 self.0.half_extents[0] as f64,
@@ -105,6 +114,9 @@ mod pyo3_impl {
         }
         fn contains_point(&self, point: PyDVec3) -> bool {
             self.0.contains_point(dv3(point))
+        }
+        fn point_dist_sq(&self, point: PyDVec3) -> f64 {
+            self.0.point_dist_sq(dv3(point)) as f64
         }
         fn bounding_sphere_radius(&self) -> f64 {
             self.0.bounding_sphere_radius() as f64
@@ -164,9 +176,9 @@ mod pyo3_impl {
 #[cfg(feature = "rustpython-backend")]
 mod rustpython_impl {
     use super::*;
-    use crate::glam_wrappers::PyDVec3;
     use crate::glam_wrappers::quat::extract_quat;
     use crate::glam_wrappers::vec3::extract_vec3;
+    use crate::glam_wrappers::{PyDMat3, PyDVec3};
     use crate::wreck_wrappers::rustpython_glue::{
         dv3, extract_affine3, extract_mat3, shape_collides, v3d,
     };
@@ -221,6 +233,15 @@ mod rustpython_impl {
         #[pygetset]
         fn axis_aligned(&self) -> bool {
             self.0.axis_aligned
+        }
+        #[pygetset]
+        fn orientation(&self) -> PyDMat3 {
+            let a = &self.0.axes;
+            PyDMat3(glam::DMat3::from_cols(
+                glam::DVec3::new(a[0].x as f64, a[0].y as f64, a[0].z as f64),
+                glam::DVec3::new(a[1].x as f64, a[1].y as f64, a[1].z as f64),
+                glam::DVec3::new(a[2].x as f64, a[2].y as f64, a[2].z as f64),
+            ))
         }
         #[pygetset]
         fn axes(&self) -> ((f64, f64, f64), (f64, f64, f64), (f64, f64, f64)) {

@@ -92,6 +92,15 @@ mod pyo3_impl {
                 self.0.stretch(dv3(translation)),
             ))]
         }
+        #[pyo3(signature = (translation, plane_offset=0.0))]
+        fn swept(&self, translation: PyDVec3, plane_offset: f64) -> Self {
+            let mut poly = self.0.stretch(dv3(translation));
+            let off = plane_offset as f32;
+            for (_, d) in poly.planes.iter_mut() {
+                *d -= off;
+            }
+            Self(poly)
+        }
         fn __repr__(&self) -> String {
             self.0.to_string()
         }
@@ -110,7 +119,7 @@ mod rustpython_impl {
     use rustpython_vm::{
         Py, PyObjectRef, PyPayload, PyResult, VirtualMachine,
         builtins::PyType,
-        function::FuncArgs,
+        function::{FuncArgs, OptionalArg},
         pyclass,
         types::{Constructor, Representable},
     };
@@ -222,6 +231,20 @@ mod rustpython_impl {
                     .into_pyobject(vm),
             ];
             Ok(vm.ctx.new_list(items).into())
+        }
+        #[pymethod]
+        fn swept(
+            &self,
+            translation: PyObjectRef,
+            plane_offset: OptionalArg<f64>,
+            vm: &VirtualMachine,
+        ) -> PyResult<Self> {
+            let mut poly = self.0.stretch(dv3(extract_vec3(&translation, vm)?));
+            let off = plane_offset.unwrap_or(0.0) as f32;
+            for (_, d) in poly.planes.iter_mut() {
+                *d -= off;
+            }
+            Ok(Self(poly))
         }
         #[pymethod]
         fn abs_diff_eq(
