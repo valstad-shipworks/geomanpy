@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import enum
-from typing import Any, ClassVar, Protocol, Self, overload, runtime_checkable  # type: ignore
+from typing import Any, ClassVar, Iterable, Protocol, Self, overload, runtime_checkable  # type: ignore
 
 import numpy as np
 import numpy.typing as npt
