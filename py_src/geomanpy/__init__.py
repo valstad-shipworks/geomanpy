@@ -21,6 +21,12 @@ from geomanpy._geomanpy import (  # type: ignore
     Pointcloud,
     SphereCollection,
     Collider,
+    Interval,
+    Nearest,
+    QuadraticBezier,
+    CubicBezier,
+    Polyline,
+    Spline,
 )
 
 Quaternion = Quat
@@ -56,6 +62,12 @@ __all__ = [
     "Pointcloud",
     "SphereCollection",
     "Collider",
+    "Interval",
+    "Nearest",
+    "QuadraticBezier",
+    "CubicBezier",
+    "Polyline",
+    "Spline",
     "Quaternion",
     "Rotation3d",
     "Translation3d",

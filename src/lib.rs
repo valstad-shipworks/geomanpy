@@ -43,6 +43,8 @@ pub const PY_MODULE_CONTENTS: &str = include_str!("../py_src/geomanpy/__init__.p
 #[cfg(feature = "not_build_only")]
 pub mod glam_wrappers;
 #[cfg(feature = "not_build_only")]
+pub mod squiggle_wrappers;
+#[cfg(feature = "not_build_only")]
 pub mod wreck_wrappers;
 
 // Serialization helpers. `pickle` exposes backend-agnostic serde-pickle
@@ -64,6 +66,7 @@ use pyo3::prelude::*;
 fn geomanpy(m: &Bound<'_, PyModule>) -> PyResult<()> {
     glam_wrappers::register(m)?;
     wreck_wrappers::register(m)?;
+    squiggle_wrappers::register(m)?;
     Ok(())
 }
 
