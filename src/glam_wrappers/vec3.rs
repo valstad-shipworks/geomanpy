@@ -40,14 +40,16 @@ impl From<PyDVec3> for DVec3 {
 mod pyo3_impl {
     use super::*;
     use crate::glam_wrappers::{
-        PyDVec2, PyDVec4, extract_numpy_vector, impl_serde_methods, impl_vec_constants,
+        PyDMat3, PyDVec2, PyDVec4, extract_numpy_vector, impl_serde_methods, impl_vec_constants,
         impl_vec_unary,
     };
     use crate::pickle::pickle_decode;
     use crate::{impl_dataclass_fields, impl_getnewargs_ex};
+    use glam::{DMat3, DQuat};
     use numpy::{AllowTypeChange, PyArray1, PyArrayLike1};
-    use pyo3::exceptions::PyIndexError;
+    use pyo3::exceptions::{PyIndexError, PyValueError};
     use pyo3::prelude::*;
+    use std::f64::consts::PI;
 
     impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyDVec3 {
         type Error = pyo3::PyErr;
@@ -132,6 +134,49 @@ mod pyo3_impl {
         #[inline]
         fn from_homogeneous(v: PyDVec4) -> Self {
             Self(DVec3::from_homogeneous(v.0))
+        }
+
+        #[staticmethod]
+        #[inline]
+        fn from_spherical(rotation: PyDMat3, radius: f64) -> Self {
+            Self((rotation.0 * DVec3::X) * radius)
+        }
+
+        #[pyo3(signature = (ref_axis=None))]
+        fn angle(&self, ref_axis: Option<PyDVec3>) -> PyResult<PyDMat3> {
+            let r = ref_axis.map(|a| a.0).unwrap_or(DVec3::X);
+            let v_len = self.0.length();
+            if v_len < 1e-10 {
+                return Err(PyValueError::new_err(
+                    "Rotation undefined for zero translation vector.",
+                ));
+            }
+            let r_len = r.length();
+            if r_len < 1e-10 {
+                return Err(PyValueError::new_err("ref_axis must be non-zero"));
+            }
+            let v_hat = self.0 / v_len;
+            let r_hat = r / r_len;
+            let cross = r_hat.cross(v_hat);
+            let dot = r_hat.dot(v_hat);
+            let cross_len = cross.length();
+            if cross_len < 1e-10 {
+                if dot > 0.0 {
+                    return Ok(PyDMat3(DMat3::IDENTITY));
+                }
+                let perp = if r_hat.x.abs() < 0.9 {
+                    r_hat.cross(DVec3::X)
+                } else {
+                    r_hat.cross(DVec3::Y)
+                }
+                .normalize();
+                return Ok(PyDMat3(DMat3::from_quat(DQuat::from_axis_angle(perp, PI))));
+            }
+            let axis = cross / cross_len;
+            Ok(PyDMat3(DMat3::from_quat(DQuat::from_axis_angle(
+                axis,
+                cross_len.atan2(dot),
+            ))))
         }
     }
 
@@ -617,14 +662,16 @@ mod rustpython_impl {
     use super::*;
     use crate::glam_wrappers::impl_rp_vec_ops;
     use crate::glam_wrappers::vec4::extract_vec4;
-    use crate::glam_wrappers::{PyDVec2, PyDVec4};
+    use crate::glam_wrappers::{PyDMat3, PyDVec2, PyDVec4};
+    use glam::{DMat3, DQuat};
     use rustpython_vm::{
         Py, PyObjectRef, PyPayload, PyResult, VirtualMachine,
         builtins::PyType,
-        function::FuncArgs,
+        function::{FuncArgs, OptionalArg},
         pyclass,
         types::{AsMapping, AsNumber, Comparable, Constructor, Hashable, Representable},
     };
+    use std::f64::consts::PI;
 
     /// Pull a `DVec3` out of any Python object: another `Vec3`, a 3-tuple/list
     /// of floats, or anything with `x`/`y`/`z` attributes.
@@ -770,6 +817,60 @@ mod rustpython_impl {
         fn from_homogeneous(v: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
             let w = extract_vec4(&v, vm)?;
             Ok(Self(DVec3::from_homogeneous(w)))
+        }
+        #[pystaticmethod]
+        fn from_spherical(
+            rotation: PyObjectRef,
+            radius: f64,
+            vm: &VirtualMachine,
+        ) -> PyResult<Self> {
+            let m = rotation
+                .downcast_ref::<PyDMat3>()
+                .ok_or_else(|| vm.new_type_error("expected Mat3".to_owned()))?;
+            Ok(Self((m.0 * DVec3::X) * radius))
+        }
+        #[pymethod]
+        fn angle(
+            &self,
+            ref_axis: OptionalArg<PyObjectRef>,
+            vm: &VirtualMachine,
+        ) -> PyResult<PyDMat3> {
+            let r = match ref_axis {
+                OptionalArg::Present(obj) if !vm.is_none(&obj) => extract(&obj, vm)?,
+                _ => DVec3::X,
+            };
+            let v_len = self.0.length();
+            if v_len < 1e-10 {
+                return Err(vm.new_value_error(
+                    "Rotation undefined for zero translation vector.".to_owned(),
+                ));
+            }
+            let r_len = r.length();
+            if r_len < 1e-10 {
+                return Err(vm.new_value_error("ref_axis must be non-zero".to_owned()));
+            }
+            let v_hat = self.0 / v_len;
+            let r_hat = r / r_len;
+            let cross = r_hat.cross(v_hat);
+            let dot = r_hat.dot(v_hat);
+            let cross_len = cross.length();
+            if cross_len < 1e-10 {
+                if dot > 0.0 {
+                    return Ok(PyDMat3(DMat3::IDENTITY));
+                }
+                let perp = if r_hat.x.abs() < 0.9 {
+                    r_hat.cross(DVec3::X)
+                } else {
+                    r_hat.cross(DVec3::Y)
+                }
+                .normalize();
+                return Ok(PyDMat3(DMat3::from_quat(DQuat::from_axis_angle(perp, PI))));
+            }
+            let axis = cross / cross_len;
+            Ok(PyDMat3(DMat3::from_quat(DQuat::from_axis_angle(
+                axis,
+                cross_len.atan2(dot),
+            ))))
         }
 
         // Core glam methods

@@ -36,11 +36,25 @@ mod pyo3_impl {
             }
             Ok(Self(Collider::new()))
         }
+        #[staticmethod]
+        fn from_any(obstacles: PyCollider) -> Self {
+            obstacles
+        }
         fn add(&mut self, shape: PyShape) {
             AnyShape::from(shape).push_into(&mut self.0);
         }
         fn include(&mut self, other: PyCollider) {
             self.0.include(other.0);
+        }
+        fn merge(&self, other: PyCollider) -> Self {
+            let mut out = self.0.clone();
+            out.include(other.0);
+            Self(out)
+        }
+        fn with_any(&self, obstacle: PyCollider) -> Self {
+            let mut out = self.0.clone();
+            out.include(obstacle.0);
+            Self(out)
         }
         fn collides(&self, shape: PyShape) -> PyResult<bool> {
             AnyShape::from(shape).query_collider(&self.0).ok_or_else(|| {
@@ -125,8 +139,8 @@ mod rustpython_impl {
         add_to_collider, extract_affine3, extract_mat3, shape_collides_collider,
     };
     use crate::wreck_wrappers::{
-        PyCapsule, PyConvexPolygon, PyConvexPolytope, PyCuboid, PyCylinder, PyLine, PyLineSegment,
-        PyPlane, PyPointcloud, PyRay, PySphere, PySphereCollection,
+        AnyShape, PyCapsule, PyConvexPolygon, PyConvexPolytope, PyCuboid, PyCylinder, PyLine,
+        PyLineSegment, PyPlane, PyPointcloud, PyRay, PySphere, PySphereCollection,
     };
     use rustpython_vm::{
         Py, PyObjectRef, PyResult, VirtualMachine,
@@ -136,6 +150,39 @@ mod rustpython_impl {
         types::{Constructor, Representable},
     };
     use wreck::{Bounded, Scalable, Transformable};
+
+    /// Fold a single shape, another `Collider`, a sequence of these, or `None`
+    /// into `c`. Mirrors the pyo3 `Collider` `FromPyObject` extraction.
+    fn extend_any(
+        c: &mut Collider<Pointcloud>,
+        obj: &PyObjectRef,
+        vm: &VirtualMachine,
+    ) -> PyResult<()> {
+        if vm.is_none(obj) {
+            return Ok(());
+        }
+        if let Some(other) = obj.downcast_ref::<PyCollider>() {
+            c.include(other.0.clone());
+            return Ok(());
+        }
+        if let Ok(shape) = AnyShape::try_from_object(obj, vm) {
+            shape.push_into(c);
+            return Ok(());
+        }
+        let seq: Vec<PyObjectRef> = obj.try_to_value(vm).map_err(|_| {
+            vm.new_type_error(
+                "expected a Shape, primitive, Collider, or a sequence of these".to_owned(),
+            )
+        })?;
+        for item in &seq {
+            if let Some(other) = item.downcast_ref::<PyCollider>() {
+                c.include(other.0.clone());
+            } else {
+                add_to_collider(c, item, vm)?;
+            }
+        }
+        Ok(())
+    }
 
     impl Constructor for PyCollider {
         type Args = FuncArgs;
@@ -198,6 +245,32 @@ mod rustpython_impl {
                 .ok_or_else(|| vm.new_type_error("expected Collider".to_owned()))?;
             let mut out = self.0.clone();
             out.include(other.0.clone());
+            Ok(Self(out))
+        }
+
+        /// Build a Collider from a single shape, another Collider, a sequence
+        /// of these, or None.
+        #[pystaticmethod]
+        fn from_any(obstacles: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            let mut out = Collider::new();
+            extend_any(&mut out, &obstacles, vm)?;
+            Ok(Self(out))
+        }
+
+        /// Merge another Collider (or any obstacle) into a new Collider.
+        #[pymethod]
+        fn merge(&self, other: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            let mut out = self.0.clone();
+            extend_any(&mut out, &other, vm)?;
+            Ok(Self(out))
+        }
+
+        /// New Collider combining this one with any obstacle (shape, sequence,
+        /// Collider, or None).
+        #[pymethod]
+        fn with_any(&self, obstacle: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            let mut out = self.0.clone();
+            extend_any(&mut out, &obstacle, vm)?;
             Ok(Self(out))
         }
 

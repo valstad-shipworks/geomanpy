@@ -78,6 +78,23 @@ mod pyo3_impl {
                 radius,
             ))
         }
+        fn center_orientation(&self) -> (PyDVec3, PyDMat3) {
+            let p1 = self.0.p1;
+            let p2 = self.0.p2();
+            let p1d = glam::DVec3::new(p1.x as f64, p1.y as f64, p1.z as f64);
+            let p2d = glam::DVec3::new(p2.x as f64, p2.y as f64, p2.z as f64);
+            let center = (p1d + p2d) * 0.5;
+            let d = p2d - p1d;
+            let length = d.length();
+            let axis = if length > 1e-12 {
+                d / length
+            } else {
+                glam::DVec3::Y
+            };
+            let orientation =
+                glam::DMat3::from_quat(glam::DQuat::from_rotation_arc(glam::DVec3::Y, axis));
+            (PyDVec3(center), PyDMat3(orientation))
+        }
         fn stretch(&self, translation: PyDVec3) -> Vec<PyShape> {
             match self.0.stretch(dv3(translation)) {
                 CylinderStretch::Aligned(c) => vec![PyShape::Cylinder(PyCylinder(c))],
@@ -111,9 +128,9 @@ mod pyo3_impl {
 #[cfg(feature = "rustpython-backend")]
 mod rustpython_impl {
     use super::*;
-    use crate::glam_wrappers::PyDVec3;
     use crate::glam_wrappers::quat::extract_quat;
     use crate::glam_wrappers::vec3::extract_vec3;
+    use crate::glam_wrappers::{PyDMat3, PyDVec3};
     use crate::wreck_wrappers::rustpython_glue::{
         dv3, extract_affine3, extract_mat3, shape_collides, v3d,
     };
@@ -197,6 +214,24 @@ mod rustpython_impl {
             Ok(Self(Cylinder::from_center_orientation(
                 c, o, length, radius,
             )))
+        }
+        #[pymethod]
+        fn center_orientation(&self) -> (PyDVec3, PyDMat3) {
+            let p1 = self.0.p1;
+            let p2 = self.0.p2();
+            let p1d = glam::DVec3::new(p1.x as f64, p1.y as f64, p1.z as f64);
+            let p2d = glam::DVec3::new(p2.x as f64, p2.y as f64, p2.z as f64);
+            let center = (p1d + p2d) * 0.5;
+            let d = p2d - p1d;
+            let length = d.length();
+            let axis = if length > 1e-12 {
+                d / length
+            } else {
+                glam::DVec3::Y
+            };
+            let orientation =
+                glam::DMat3::from_quat(glam::DQuat::from_rotation_arc(glam::DVec3::Y, axis));
+            (PyDVec3(center), PyDMat3(orientation))
         }
 
         #[pymethod]

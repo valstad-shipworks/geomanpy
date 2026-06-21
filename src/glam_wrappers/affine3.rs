@@ -144,6 +144,18 @@ mod pyo3_impl {
             Self(DAffine3::from_mat3(mat3.0))
         }
         #[staticmethod]
+        fn just(component: &Bound<'_, PyAny>) -> PyResult<Self> {
+            if let Ok(t) = component.extract::<PyDVec3>() {
+                return Ok(Self(DAffine3::from_translation(t.0)));
+            }
+            if let Ok(r) = component.extract::<PyDMat3>() {
+                return Ok(Self(DAffine3::from_mat3(r.0)));
+            }
+            Err(pyo3::exceptions::PyTypeError::new_err(
+                "expected Vec3 or Mat3",
+            ))
+        }
+        #[staticmethod]
         #[inline]
         fn from_mat3_translation(mat3: PyDMat3, translation: PyDVec3) -> Self {
             Self(DAffine3::from_mat3_translation(mat3.0, translation.0))
@@ -465,6 +477,16 @@ mod rustpython_impl {
         #[pystaticmethod]
         fn from_mat3(mat3: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
             Ok(Self(DAffine3::from_mat3(extract_mat3(&mat3, vm)?)))
+        }
+        #[pystaticmethod]
+        fn just(component: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            if let Some(v) = component.downcast_ref::<PyDVec3>() {
+                return Ok(Self(DAffine3::from_translation(v.0)));
+            }
+            if let Some(m) = component.downcast_ref::<PyDMat3>() {
+                return Ok(Self(DAffine3::from_mat3(m.0)));
+            }
+            Err(vm.new_type_error("expected Vec3 or Mat3".to_owned()))
         }
         #[pystaticmethod]
         fn from_mat3_translation(
