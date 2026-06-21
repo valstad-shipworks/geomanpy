@@ -6,7 +6,7 @@ use squiggle::{CubicBezier, QuadraticBezier};
 
 #[cfg_attr(
     feature = "pyo3-backend",
-    pyo3::pyclass(frozen, from_py_object, name = "QuadraticBezier")
+    pyo3::pyclass(frozen, skip_from_py_object, name = "QuadraticBezier")
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
@@ -18,7 +18,7 @@ pub struct PyQuadraticBezier(pub QuadraticBezier);
 
 #[cfg_attr(
     feature = "pyo3-backend",
-    pyo3::pyclass(frozen, from_py_object, name = "CubicBezier")
+    pyo3::pyclass(frozen, skip_from_py_object, name = "CubicBezier")
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
@@ -39,6 +39,49 @@ mod pyo3_impl {
     use crate::wreck_wrappers::pyo3_glue::dv3;
     use pyo3::PyResult;
     use pyo3::prelude::*;
+
+    impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyQuadraticBezier {
+        type Error = pyo3::PyErr;
+        fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
+            if let Ok(v) = ob.cast_exact::<Self>() {
+                return Ok(*v.get());
+            }
+            let py = ob.py();
+            let pts: Vec<PyDVec3> = ob.getattr(pyo3::intern!(py, "points"))?.extract()?;
+            if pts.len() != 3 {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "QuadraticBezier requires exactly 3 control points",
+                ));
+            }
+            Ok(Self(QuadraticBezier::new([
+                dv3(pts[0]),
+                dv3(pts[1]),
+                dv3(pts[2]),
+            ])))
+        }
+    }
+
+    impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyCubicBezier {
+        type Error = pyo3::PyErr;
+        fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
+            if let Ok(v) = ob.cast_exact::<Self>() {
+                return Ok(*v.get());
+            }
+            let py = ob.py();
+            let pts: Vec<PyDVec3> = ob.getattr(pyo3::intern!(py, "points"))?.extract()?;
+            if pts.len() != 4 {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "CubicBezier requires exactly 4 control points",
+                ));
+            }
+            Ok(Self(CubicBezier::new([
+                dv3(pts[0]),
+                dv3(pts[1]),
+                dv3(pts[2]),
+                dv3(pts[3]),
+            ])))
+        }
+    }
 
     #[pymethods]
     impl PyQuadraticBezier {

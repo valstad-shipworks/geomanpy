@@ -4,7 +4,7 @@ use squiggle::Polyline;
 
 #[cfg_attr(
     feature = "pyo3-backend",
-    pyo3::pyclass(frozen, from_py_object, name = "Polyline")
+    pyo3::pyclass(frozen, skip_from_py_object, name = "Polyline")
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
@@ -26,6 +26,18 @@ mod pyo3_impl {
     use crate::wreck_wrappers::pyo3_glue::dv3;
     use pyo3::PyResult;
     use pyo3::prelude::*;
+
+    impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyPolyline {
+        type Error = pyo3::PyErr;
+        fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
+            if let Ok(v) = ob.cast_exact::<Self>() {
+                return Ok(v.get().clone());
+            }
+            let py = ob.py();
+            let pts: Vec<PyDVec3> = ob.getattr(pyo3::intern!(py, "points"))?.extract()?;
+            Ok(Self(Polyline::new(pts.into_iter().map(dv3).collect())))
+        }
+    }
 
     #[pymethods]
     impl PyPolyline {

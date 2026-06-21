@@ -321,6 +321,8 @@ assert i.contains(1.0) and not i.contains(5.0)
 assert i.is_finite()
 assert not Interval.all().is_finite()
 assert Interval.unit().max == 1.0
+assert i.abs_diff_eq(Interval(0.0, 2.0), 1e-6)
+assert not i.abs_diff_eq(Interval(0.0, 3.0), 1e-6)
 
 # A cubic Bézier rising along a straight diagonal is parameterized so its
 # endpoints land on the first and last control points.
@@ -342,6 +344,7 @@ assert isinstance(n, Nearest)
 assert abs(n.point.x - 1.5) < 1e-2
 assert abs(n.dist_sq - 1.0) < 1e-2
 assert abs(n.distance() - 1.0) < 1e-2
+assert n.abs_diff_eq(n, 1e-6)
 
 qb = QuadraticBezier(Vec3(0.0, 0.0, 0.0), Vec3(1.0, 1.0, 0.0), Vec3(2.0, 0.0, 0.0))
 assert len(qb.points) == 3

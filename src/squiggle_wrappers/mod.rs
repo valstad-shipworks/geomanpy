@@ -243,7 +243,7 @@ mod pyo3_glue {
             #[pyo3::pymethods]
             impl $ty {
                 #[inline]
-                fn abs_diff_eq(&self, rhs: &Self, max_abs_diff: f64) -> bool {
+                fn abs_diff_eq(&self, rhs: Self, max_abs_diff: f64) -> bool {
                     approx::AbsDiffEq::abs_diff_eq(&self.0, &rhs.0, max_abs_diff as f32)
                 }
             }

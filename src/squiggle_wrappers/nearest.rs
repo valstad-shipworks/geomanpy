@@ -4,7 +4,7 @@ use squiggle::Nearest;
 
 #[cfg_attr(
     feature = "pyo3-backend",
-    pyo3::pyclass(frozen, from_py_object, name = "Nearest")
+    pyo3::pyclass(frozen, skip_from_py_object, name = "Nearest")
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
@@ -23,6 +23,24 @@ mod pyo3_impl {
     use crate::wreck_wrappers::pyo3_glue::dv3;
     use pyo3::PyResult;
     use pyo3::prelude::*;
+
+    impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyNearest {
+        type Error = pyo3::PyErr;
+        fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
+            if let Ok(v) = ob.cast_exact::<Self>() {
+                return Ok(*v.get());
+            }
+            let py = ob.py();
+            let t: f64 = ob.getattr(pyo3::intern!(py, "t"))?.extract()?;
+            let point = dv3(ob.getattr(pyo3::intern!(py, "point"))?.extract::<PyDVec3>()?);
+            let dist_sq: f64 = ob.getattr(pyo3::intern!(py, "dist_sq"))?.extract()?;
+            Ok(Self(Nearest {
+                t: t as f32,
+                point,
+                dist_sq: dist_sq as f32,
+            }))
+        }
+    }
 
     #[pymethods]
     impl PyNearest {
@@ -72,6 +90,7 @@ mod pyo3_impl {
         }
     }
 
+    crate::squiggle_wrappers::impl_approx_py!(PyNearest);
     crate::impl_getnewargs_ex!(PyNearest);
     crate::impl_dataclass_fields!(PyNearest, ["t", "point", "dist_sq"]);
 }
@@ -142,6 +161,22 @@ mod rustpython_impl {
         #[pymethod]
         fn distance(&self) -> f64 {
             (self.0.dist_sq as f64).sqrt()
+        }
+        #[pymethod]
+        fn abs_diff_eq(
+            &self,
+            other: PyObjectRef,
+            max_abs_diff: f64,
+            vm: &VirtualMachine,
+        ) -> PyResult<bool> {
+            let o = other
+                .downcast_ref::<PyNearest>()
+                .ok_or_else(|| vm.new_type_error("expected Nearest".to_owned()))?;
+            Ok(approx::AbsDiffEq::abs_diff_eq(
+                &self.0,
+                &o.0,
+                max_abs_diff as f32,
+            ))
         }
         #[pymethod]
         fn __getnewargs_ex__(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {

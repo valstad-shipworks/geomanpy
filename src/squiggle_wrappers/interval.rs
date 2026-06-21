@@ -4,7 +4,7 @@ use squiggle::Interval;
 
 #[cfg_attr(
     feature = "pyo3-backend",
-    pyo3::pyclass(frozen, from_py_object, name = "Interval")
+    pyo3::pyclass(frozen, skip_from_py_object, name = "Interval")
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
@@ -20,6 +20,19 @@ mod pyo3_impl {
     use crate::pickle::pickle_decode;
     use pyo3::PyResult;
     use pyo3::prelude::*;
+
+    impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyInterval {
+        type Error = pyo3::PyErr;
+        fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
+            if let Ok(v) = ob.cast_exact::<Self>() {
+                return Ok(*v.get());
+            }
+            let py = ob.py();
+            let min: f64 = ob.getattr(pyo3::intern!(py, "min"))?.extract()?;
+            let max: f64 = ob.getattr(pyo3::intern!(py, "max"))?.extract()?;
+            Ok(Self(Interval::new(min as f32, max as f32)))
+        }
+    }
 
     #[pymethods]
     impl PyInterval {
@@ -76,6 +89,7 @@ mod pyo3_impl {
         }
     }
 
+    crate::squiggle_wrappers::impl_approx_py!(PyInterval);
     crate::impl_getnewargs_ex!(PyInterval);
     crate::impl_dataclass_fields!(PyInterval, ["min", "max"]);
 }
@@ -84,7 +98,7 @@ mod pyo3_impl {
 mod rustpython_impl {
     use super::*;
     use rustpython_vm::{
-        Py, PyResult, VirtualMachine,
+        Py, PyObjectRef, PyResult, VirtualMachine,
         builtins::PyType,
         function::FuncArgs,
         pyclass,
@@ -152,6 +166,22 @@ mod rustpython_impl {
         #[pymethod]
         fn is_finite(&self) -> bool {
             self.0.is_finite()
+        }
+        #[pymethod]
+        fn abs_diff_eq(
+            &self,
+            other: PyObjectRef,
+            max_abs_diff: f64,
+            vm: &VirtualMachine,
+        ) -> PyResult<bool> {
+            let o = other
+                .downcast_ref::<PyInterval>()
+                .ok_or_else(|| vm.new_type_error("expected Interval".to_owned()))?;
+            Ok(approx::AbsDiffEq::abs_diff_eq(
+                &self.0,
+                &o.0,
+                max_abs_diff as f32,
+            ))
         }
         #[pymethod]
         fn __getnewargs_ex__(&self, vm: &VirtualMachine) -> PyResult<rustpython_vm::PyObjectRef> {
