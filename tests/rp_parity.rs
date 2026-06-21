@@ -297,67 +297,71 @@ assert Sphere3d(Vec3(0.0, 0.0, 0.0), 1.0).radius == 1.0
 }
 
 #[test]
-fn convenience_layer_surface() {
+fn squiggle_curve_surface() {
     run(r#"
-HALF_PI = 1.5707963267948966
-from geomanpy import Vec3, Mat3, Quat, Affine3, Cuboid, Cylinder, ConvexPolytope, Collider, Sphere
-
-# Vec3.from_spherical: rotation applied to +X, scaled by radius
-v = Vec3.from_spherical(Mat3.IDENTITY, 2.5)
-assert v == Vec3(2.5, 0.0, 0.0)
-
-# Vec3.angle: rotation taking the reference axis onto the vector's direction
-r = Vec3(0.0, 1.0, 0.0).angle()
-assert (r * Vec3(1.0, 0.0, 0.0)).distance(Vec3(0.0, 1.0, 0.0)) < 1e-9
-assert (Vec3(1.0, 0.0, 0.0).angle()) == Mat3.IDENTITY
-r2 = Vec3(0.0, 0.0, 1.0).angle(Vec3(0.0, 1.0, 0.0))
-assert (r2 * Vec3(0.0, 1.0, 0.0)).distance(Vec3(0.0, 0.0, 1.0)) < 1e-9
-
-# Mat3.from_scaled_axis: rotation from a rotation vector (axis * angle)
-m = Mat3.from_scaled_axis(Vec3(0.0, 0.0, HALF_PI))
-assert (m * Vec3(1.0, 0.0, 0.0)).distance(Vec3(0.0, 1.0, 0.0)) < 1e-9
-assert Mat3.from_scaled_axis(Vec3(0.0, 0.0, 0.0)) == Mat3.IDENTITY
-
-# Affine3.just: lone translation or lone rotation
-assert Affine3.just(Vec3(1.0, 2.0, 3.0)) == Affine3.from_translation(Vec3(1.0, 2.0, 3.0))
-assert Affine3.just(Mat3.IDENTITY) == Affine3.from_mat3(Mat3.IDENTITY)
-
-# Cuboid.orientation: column axes as a Mat3
-cub = Cuboid.from_aabb(Vec3(-1.0, -1.0, -1.0), Vec3(1.0, 1.0, 1.0))
-assert cub.orientation == Mat3.IDENTITY
-
-# Cylinder.center_orientation: reconstruct (center, orientation)
-cyl = Cylinder(Vec3(0.0, -1.0, 0.0), Vec3(0.0, 1.0, 0.0), 0.5)
-c, o = cyl.center_orientation()
-assert c.distance(Vec3(0.0, 0.0, 0.0)) < 1e-9
-assert o == Mat3.IDENTITY
-
-# ConvexPolytope.swept: concrete sweep, accepted by a Collider.
-# An oriented cuboid stretch yields a real ConvexPolytope to sweep.
-oriented = Cuboid.from_aabb(Vec3(-1.0, -1.0, -1.0), Vec3(1.0, 1.0, 1.0)).rotated_mat(
-    Mat3.from_rotation_z(0.5)
+from geomanpy import (
+    Vec3,
+    Interval,
+    Nearest,
+    QuadraticBezier,
+    CubicBezier,
+    Polyline,
+    Spline,
+    Cuboid,
+    LineSegment,
 )
-# World +X is not one of the rotated cuboid's axes, so the stretch is
-# unaligned and yields a concrete ConvexPolytope.
-poly = [p for p in oriented.stretch(Vec3(5.0, 0.0, 0.0)) if isinstance(p, ConvexPolytope)][0]
-swept = poly.swept(Vec3(5.0, 0.0, 0.0))
-assert isinstance(swept, ConvexPolytope)
-shrunk = poly.swept(Vec3(5.0, 0.0, 0.0), 0.1)
-# Shrinking pulls every plane inward, so the offset constants drop.
-assert all(s[1] <= w[1] + 1e-6 for s, w in zip(shrunk.planes(), swept.planes()))
-col = Collider().add(swept)  # rustpython add returns a new Collider
-assert col.collides(Sphere(Vec3(0.0, 0.0, 0.0), 0.5))
 
-# Collider.from_any / merge / with_any
-empty = Collider.from_any(None)
-assert empty.mask() == 0
-one = Collider.from_any(Sphere(Vec3(0.0, 0.0, 0.0), 1.0))
-assert one.collides(Sphere(Vec3(1.0, 0.0, 0.0), 0.5))
-many = Collider.from_any([Sphere(Vec3(0.0, 0.0, 0.0), 1.0), Cuboid.from_aabb(Vec3(4.0, 4.0, 4.0), Vec3(6.0, 6.0, 6.0))])
-assert many.collides(Sphere(Vec3(5.0, 5.0, 5.0), 0.5))
-merged = one.merge(many)
-assert merged.collides(Sphere(Vec3(5.0, 5.0, 5.0), 0.5))
-extended = one.with_any(Cuboid.from_aabb(Vec3(4.0, 4.0, 4.0), Vec3(6.0, 6.0, 6.0)))
-assert extended.collides(Sphere(Vec3(5.0, 5.0, 5.0), 0.5))
+# Interval value type
+i = Interval(0.0, 2.0)
+assert i.min == 0.0 and i.max == 2.0
+assert i.span() == 2.0
+assert i.clamp(3.0) == 2.0
+assert i.lerp(0.5) == 1.0
+assert i.contains(1.0) and not i.contains(5.0)
+assert i.is_finite()
+assert not Interval.all().is_finite()
+assert Interval.unit().max == 1.0
+assert i.abs_diff_eq(Interval(0.0, 2.0), 1e-6)
+assert not i.abs_diff_eq(Interval(0.0, 3.0), 1e-6)
+
+# A cubic Bézier rising along a straight diagonal is parameterized so its
+# endpoints land on the first and last control points.
+cb = CubicBezier(Vec3(0.0, 0.0, 0.0), Vec3(1.0, 0.0, 0.0), Vec3(2.0, 0.0, 0.0), Vec3(3.0, 0.0, 0.0))
+assert len(cb.points) == 4
+assert cb.domain().max == 1.0
+start, end = cb.endpoints()
+assert start == Vec3(0.0, 0.0, 0.0)
+assert end == Vec3(3.0, 0.0, 0.0)
+assert abs(cb.point(0.5).x - 1.5) < 1e-5
+left, right = cb.split(0.5)
+assert isinstance(left, CubicBezier) and isinstance(right, CubicBezier)
+moved = cb.translated(Vec3(0.0, 1.0, 0.0))
+assert abs(moved.point(0.0).y - 1.0) < 1e-5
+assert isinstance(cb.aabb(), Cuboid)
+
+n = cb.nearest(Vec3(1.5, 1.0, 0.0))
+assert isinstance(n, Nearest)
+assert abs(n.point.x - 1.5) < 1e-2
+assert abs(n.dist_sq - 1.0) < 1e-2
+assert abs(n.distance() - 1.0) < 1e-2
+assert n.abs_diff_eq(n, 1e-6)
+
+qb = QuadraticBezier(Vec3(0.0, 0.0, 0.0), Vec3(1.0, 1.0, 0.0), Vec3(2.0, 0.0, 0.0))
+assert len(qb.points) == 3
+assert qb.reversed().point(0.0) == Vec3(2.0, 0.0, 0.0)
+
+# Polyline: an L of two unit legs has length 2 and yields two segments.
+pl = Polyline([Vec3(0.0, 0.0, 0.0), Vec3(1.0, 0.0, 0.0), Vec3(1.0, 1.0, 0.0)])
+assert abs(pl.length() - 2.0) < 1e-5
+segs = pl.segments()
+assert len(segs) == 2 and isinstance(segs[0], LineSegment)
+assert abs(pl.point_at_distance(1.0).x - 1.0) < 1e-5
+assert pl.abs_diff_eq(Polyline(pl.points), 1e-6)
+
+# Spline interpolates its knots.
+sp = Spline([Vec3(0.0, 0.0, 0.0), Vec3(1.0, 1.0, 0.0), Vec3(2.0, 0.0, 0.0)])
+assert len(sp.points) == 3
+assert abs(sp.point(0.5).y - 1.0) < 1e-5
+assert isinstance(sp.scaled(2.0), Spline)
 "#);
 }

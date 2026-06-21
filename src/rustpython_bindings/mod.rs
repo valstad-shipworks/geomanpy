@@ -120,6 +120,31 @@ pub(crate) mod geomanpy_module {
         crate::wreck_wrappers::PyShape::make_static_type()
     }
 
+    #[pyattr(name = "Interval")]
+    fn interval_type(_vm: &VirtualMachine) -> PyTypeRef {
+        crate::squiggle_wrappers::PyInterval::make_static_type()
+    }
+    #[pyattr(name = "Nearest")]
+    fn nearest_type(_vm: &VirtualMachine) -> PyTypeRef {
+        crate::squiggle_wrappers::PyNearest::make_static_type()
+    }
+    #[pyattr(name = "QuadraticBezier")]
+    fn quadratic_bezier_type(_vm: &VirtualMachine) -> PyTypeRef {
+        crate::squiggle_wrappers::PyQuadraticBezier::make_static_type()
+    }
+    #[pyattr(name = "CubicBezier")]
+    fn cubic_bezier_type(_vm: &VirtualMachine) -> PyTypeRef {
+        crate::squiggle_wrappers::PyCubicBezier::make_static_type()
+    }
+    #[pyattr(name = "Polyline")]
+    fn polyline_type(_vm: &VirtualMachine) -> PyTypeRef {
+        crate::squiggle_wrappers::PyPolyline::make_static_type()
+    }
+    #[pyattr(name = "Spline")]
+    fn spline_type(_vm: &VirtualMachine) -> PyTypeRef {
+        crate::squiggle_wrappers::PySpline::make_static_type()
+    }
+
     // Domain-name aliases, mirroring the pure-Python facade in
     // `py_src/geomanpy/__init__.py` so an embedded module exposes the same
     // public names as the CPython package without layering that facade on top.

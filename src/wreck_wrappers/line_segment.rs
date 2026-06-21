@@ -47,14 +47,15 @@ mod pyo3_impl {
         }
         #[getter]
         fn p1(&self) -> PyDVec3 {
-            v3d(self.0.p1)
+            v3d(self.0.start)
         }
         #[getter]
         fn p2(&self) -> PyDVec3 {
-            v3d(self.0.p2())
+            v3d(self.0.end)
         }
         fn bounding_sphere(&self) -> (PyDVec3, f64) {
-            let (c, r) = self.0.bounding_sphere();
+            let c = self.0.midpoint();
+            let r = self.0.dir().length() * 0.5;
             (v3d(c), r as f64)
         }
         fn stretch(&self, translation: PyDVec3) -> Vec<PyShape> {
@@ -115,15 +116,16 @@ mod rustpython_impl {
     impl PyLineSegment {
         #[pygetset]
         fn p1(&self) -> PyDVec3 {
-            v3d(self.0.p1)
+            v3d(self.0.start)
         }
         #[pygetset]
         fn p2(&self) -> PyDVec3 {
-            v3d(self.0.p2())
+            v3d(self.0.end)
         }
         #[pymethod]
         fn bounding_sphere(&self) -> (PyDVec3, f64) {
-            let (c, r) = self.0.bounding_sphere();
+            let c = self.0.midpoint();
+            let r = self.0.dir().length() * 0.5;
             (v3d(c), r as f64)
         }
 
@@ -150,15 +152,15 @@ mod rustpython_impl {
 
         #[pymethod]
         fn broadphase(&self) -> PySphere {
-            PySphere(self.0.broadphase())
+            PySphere(wreck::Bounded::broadphase(&self.0))
         }
         #[pymethod]
         fn obb(&self) -> PyCuboid {
-            PyCuboid(self.0.obb())
+            PyCuboid(wreck::Bounded::obb(&self.0))
         }
         #[pymethod]
         fn aabb(&self) -> PyCuboid {
-            PyCuboid(self.0.aabb())
+            PyCuboid(wreck::Bounded::aabb(&self.0))
         }
 
         #[pymethod]
