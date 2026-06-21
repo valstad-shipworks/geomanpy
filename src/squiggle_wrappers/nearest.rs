@@ -32,7 +32,9 @@ mod pyo3_impl {
             }
             let py = ob.py();
             let t: f64 = ob.getattr(pyo3::intern!(py, "t"))?.extract()?;
-            let point = dv3(ob.getattr(pyo3::intern!(py, "point"))?.extract::<PyDVec3>()?);
+            let point = dv3(ob
+                .getattr(pyo3::intern!(py, "point"))?
+                .extract::<PyDVec3>()?);
             let dist_sq: f64 = ob.getattr(pyo3::intern!(py, "dist_sq"))?.extract()?;
             Ok(Self(Nearest {
                 t: t as f32,

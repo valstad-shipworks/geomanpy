@@ -133,12 +133,9 @@ mod pyo3_impl {
                 return Ok(Self(pickle_decode::<CubicBezier>(&state)?));
             }
             match (p0, p1, p2, p3) {
-                (Some(p0), Some(p1), Some(p2), Some(p3)) => Ok(Self(CubicBezier::new([
-                    dv3(p0),
-                    dv3(p1),
-                    dv3(p2),
-                    dv3(p3),
-                ]))),
+                (Some(p0), Some(p1), Some(p2), Some(p3)) => {
+                    Ok(Self(CubicBezier::new([dv3(p0), dv3(p1), dv3(p2), dv3(p3)])))
+                }
                 _ => Err(pyo3::exceptions::PyValueError::new_err(
                     "CubicBezier requires p0, p1, p2, p3 arguments",
                 )),
@@ -249,7 +246,12 @@ mod rustpython_impl {
     impl PyQuadraticBezier {
         #[pygetset]
         fn points(&self, vm: &VirtualMachine) -> PyObjectRef {
-            let items: Vec<PyObjectRef> = self.0.points.iter().map(|p| vp(*p).into_pyobject(vm)).collect();
+            let items: Vec<PyObjectRef> = self
+                .0
+                .points
+                .iter()
+                .map(|p| vp(*p).into_pyobject(vm))
+                .collect();
             vm.ctx.new_list(items).into()
         }
         #[pymethod]
@@ -312,15 +314,24 @@ mod rustpython_impl {
         }
         #[pymethod]
         fn nearest(&self, query: PyObjectRef, vm: &VirtualMachine) -> PyResult<PyNearest> {
-            Ok(crate::squiggle_wrappers::nearest(&self.0, dv3(extract_vec3(&query, vm)?)))
+            Ok(crate::squiggle_wrappers::nearest(
+                &self.0,
+                dv3(extract_vec3(&query, vm)?),
+            ))
         }
         #[pymethod]
         fn distance(&self, query: PyObjectRef, vm: &VirtualMachine) -> PyResult<f64> {
-            Ok(crate::squiggle_wrappers::distance(&self.0, dv3(extract_vec3(&query, vm)?)))
+            Ok(crate::squiggle_wrappers::distance(
+                &self.0,
+                dv3(extract_vec3(&query, vm)?),
+            ))
         }
         #[pymethod]
         fn distance_sq(&self, query: PyObjectRef, vm: &VirtualMachine) -> PyResult<f64> {
-            Ok(crate::squiggle_wrappers::distance_sq(&self.0, dv3(extract_vec3(&query, vm)?)))
+            Ok(crate::squiggle_wrappers::distance_sq(
+                &self.0,
+                dv3(extract_vec3(&query, vm)?),
+            ))
         }
 
         #[pymethod]
@@ -329,15 +340,24 @@ mod rustpython_impl {
         }
         #[pymethod]
         fn translated(&self, offset: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(squiggle::Transform::translated(&self.0, dv3(extract_vec3(&offset, vm)?))))
+            Ok(Self(squiggle::Transform::translated(
+                &self.0,
+                dv3(extract_vec3(&offset, vm)?),
+            )))
         }
         #[pymethod]
         fn rotated_mat(&self, mat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(squiggle::Transform::rotated_mat(&self.0, extract_mat3(&mat, vm)?.as_mat3())))
+            Ok(Self(squiggle::Transform::rotated_mat(
+                &self.0,
+                extract_mat3(&mat, vm)?.as_mat3(),
+            )))
         }
         #[pymethod]
         fn rotated_quat(&self, quat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(squiggle::Transform::rotated(&self.0, extract_quat(&quat, vm)?.as_quat())))
+            Ok(Self(squiggle::Transform::rotated(
+                &self.0,
+                extract_quat(&quat, vm)?.as_quat(),
+            )))
         }
         #[pymethod]
         fn transformed(&self, tf: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
@@ -392,7 +412,11 @@ mod rustpython_impl {
             let o = other
                 .downcast_ref::<PyQuadraticBezier>()
                 .ok_or_else(|| vm.new_type_error("expected QuadraticBezier".to_owned()))?;
-            Ok(approx::AbsDiffEq::abs_diff_eq(&self.0, &o.0, max_abs_diff as f32))
+            Ok(approx::AbsDiffEq::abs_diff_eq(
+                &self.0,
+                &o.0,
+                max_abs_diff as f32,
+            ))
         }
         #[pymethod]
         fn __getnewargs_ex__(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
@@ -408,7 +432,12 @@ mod rustpython_impl {
     impl PyCubicBezier {
         #[pygetset]
         fn points(&self, vm: &VirtualMachine) -> PyObjectRef {
-            let items: Vec<PyObjectRef> = self.0.points.iter().map(|p| vp(*p).into_pyobject(vm)).collect();
+            let items: Vec<PyObjectRef> = self
+                .0
+                .points
+                .iter()
+                .map(|p| vp(*p).into_pyobject(vm))
+                .collect();
             vm.ctx.new_list(items).into()
         }
         #[pymethod]
@@ -471,15 +500,24 @@ mod rustpython_impl {
         }
         #[pymethod]
         fn nearest(&self, query: PyObjectRef, vm: &VirtualMachine) -> PyResult<PyNearest> {
-            Ok(crate::squiggle_wrappers::nearest(&self.0, dv3(extract_vec3(&query, vm)?)))
+            Ok(crate::squiggle_wrappers::nearest(
+                &self.0,
+                dv3(extract_vec3(&query, vm)?),
+            ))
         }
         #[pymethod]
         fn distance(&self, query: PyObjectRef, vm: &VirtualMachine) -> PyResult<f64> {
-            Ok(crate::squiggle_wrappers::distance(&self.0, dv3(extract_vec3(&query, vm)?)))
+            Ok(crate::squiggle_wrappers::distance(
+                &self.0,
+                dv3(extract_vec3(&query, vm)?),
+            ))
         }
         #[pymethod]
         fn distance_sq(&self, query: PyObjectRef, vm: &VirtualMachine) -> PyResult<f64> {
-            Ok(crate::squiggle_wrappers::distance_sq(&self.0, dv3(extract_vec3(&query, vm)?)))
+            Ok(crate::squiggle_wrappers::distance_sq(
+                &self.0,
+                dv3(extract_vec3(&query, vm)?),
+            ))
         }
 
         #[pymethod]
@@ -488,15 +526,24 @@ mod rustpython_impl {
         }
         #[pymethod]
         fn translated(&self, offset: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(squiggle::Transform::translated(&self.0, dv3(extract_vec3(&offset, vm)?))))
+            Ok(Self(squiggle::Transform::translated(
+                &self.0,
+                dv3(extract_vec3(&offset, vm)?),
+            )))
         }
         #[pymethod]
         fn rotated_mat(&self, mat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(squiggle::Transform::rotated_mat(&self.0, extract_mat3(&mat, vm)?.as_mat3())))
+            Ok(Self(squiggle::Transform::rotated_mat(
+                &self.0,
+                extract_mat3(&mat, vm)?.as_mat3(),
+            )))
         }
         #[pymethod]
         fn rotated_quat(&self, quat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(squiggle::Transform::rotated(&self.0, extract_quat(&quat, vm)?.as_quat())))
+            Ok(Self(squiggle::Transform::rotated(
+                &self.0,
+                extract_quat(&quat, vm)?.as_quat(),
+            )))
         }
         #[pymethod]
         fn transformed(&self, tf: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
@@ -551,7 +598,11 @@ mod rustpython_impl {
             let o = other
                 .downcast_ref::<PyCubicBezier>()
                 .ok_or_else(|| vm.new_type_error("expected CubicBezier".to_owned()))?;
-            Ok(approx::AbsDiffEq::abs_diff_eq(&self.0, &o.0, max_abs_diff as f32))
+            Ok(approx::AbsDiffEq::abs_diff_eq(
+                &self.0,
+                &o.0,
+                max_abs_diff as f32,
+            ))
         }
         #[pymethod]
         fn __getnewargs_ex__(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
