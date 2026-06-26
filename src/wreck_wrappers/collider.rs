@@ -63,7 +63,7 @@ mod pyo3_impl {
                 )
             })
         }
-        fn collides_other(&self, other: &PyCollider) -> bool {
+        fn collides_other(&self, other: PyCollider) -> bool {
             self.0.collides_other(&other.0)
         }
         fn refine_bounding(&mut self) {

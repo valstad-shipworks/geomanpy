@@ -4,7 +4,7 @@ use wreck::ConvexPolytope;
 
 #[cfg_attr(
     feature = "pyo3-backend",
-    pyo3::pyclass(frozen, from_py_object, name = "ConvexPolytope")
+    pyo3::pyclass(frozen, skip_from_py_object, name = "ConvexPolytope")
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
