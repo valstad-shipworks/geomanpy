@@ -4,7 +4,7 @@ use wreck::Line;
 
 #[cfg_attr(
     feature = "pyo3-backend",
-    pyo3::pyclass(frozen, from_py_object, name = "Line")
+    pyo3::pyclass(frozen, skip_from_py_object, name = "Line")
 )]
 #[cfg_attr(
     feature = "rustpython-backend",

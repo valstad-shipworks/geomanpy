@@ -338,6 +338,103 @@ pub mod pyo3_glue {
         }
     }
 
+    impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyPlane {
+        type Error = pyo3::PyErr;
+        fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
+            if let Ok(v) = ob.cast_exact::<Self>() {
+                return Ok(*v.get());
+            }
+            let py = ob.py();
+            let normal = extract_f32_vec3(&ob.getattr(pyo3::intern!(py, "normal"))?)?;
+            let d: f64 = ob.getattr(pyo3::intern!(py, "d"))?.extract()?;
+            Ok(Self(Plane::new(normal, d as f32)))
+        }
+    }
+
+    impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyLine {
+        type Error = pyo3::PyErr;
+        fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
+            if let Ok(v) = ob.cast_exact::<Self>() {
+                return Ok(*v.get());
+            }
+            let py = ob.py();
+            let origin = extract_f32_vec3(&ob.getattr(pyo3::intern!(py, "origin"))?)?;
+            let dir = extract_f32_vec3(&ob.getattr(pyo3::intern!(py, "dir"))?)?;
+            Ok(Self(Line::new(origin, dir)))
+        }
+    }
+
+    impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyRay {
+        type Error = pyo3::PyErr;
+        fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
+            if let Ok(v) = ob.cast_exact::<Self>() {
+                return Ok(*v.get());
+            }
+            let py = ob.py();
+            let origin = extract_f32_vec3(&ob.getattr(pyo3::intern!(py, "origin"))?)?;
+            let dir = extract_f32_vec3(&ob.getattr(pyo3::intern!(py, "dir"))?)?;
+            Ok(Self(Ray::new(origin, dir)))
+        }
+    }
+
+    impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyLineSegment {
+        type Error = pyo3::PyErr;
+        fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
+            if let Ok(v) = ob.cast_exact::<Self>() {
+                return Ok(*v.get());
+            }
+            let py = ob.py();
+            let p1 = extract_f32_vec3(&ob.getattr(pyo3::intern!(py, "p1"))?)?;
+            let p2 = extract_f32_vec3(&ob.getattr(pyo3::intern!(py, "p2"))?)?;
+            Ok(Self(LineSegment::new(p1, p2)))
+        }
+    }
+
+    impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyConvexPolytope {
+        type Error = pyo3::PyErr;
+        fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
+            if let Ok(v) = ob.cast_exact::<Self>() {
+                return Ok(v.get().clone());
+            }
+            let py = ob.py();
+            let planes: Vec<([f64; 3], f64)> =
+                ob.getattr(pyo3::intern!(py, "planes"))?.extract()?;
+            let vertices: Vec<[f64; 3]> = ob.getattr(pyo3::intern!(py, "vertices"))?.extract()?;
+            let planes: Vec<(Vec3, f32)> = planes
+                .into_iter()
+                .map(|(n, d)| (Vec3::new(n[0] as f32, n[1] as f32, n[2] as f32), d as f32))
+                .collect();
+            let vertices: Vec<Vec3> = vertices
+                .into_iter()
+                .map(|v| Vec3::new(v[0] as f32, v[1] as f32, v[2] as f32))
+                .collect();
+            Ok(Self(ConvexPolytope::new(planes, vertices)))
+        }
+    }
+
+    impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyConvexPolygon {
+        type Error = pyo3::PyErr;
+        fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
+            if let Ok(v) = ob.cast_exact::<Self>() {
+                return Ok(v.get().clone());
+            }
+            let py = ob.py();
+            let center = extract_f32_vec3(&ob.getattr(pyo3::intern!(py, "center"))?)?;
+            let normal = extract_f32_vec3(&ob.getattr(pyo3::intern!(py, "normal"))?)?;
+            let u_axis = extract_f32_vec3(&ob.getattr(pyo3::intern!(py, "u_axis"))?)?;
+            let v_axis = extract_f32_vec3(&ob.getattr(pyo3::intern!(py, "v_axis"))?)?;
+            let verts_2d: Vec<[f64; 2]> =
+                ob.getattr(pyo3::intern!(py, "vertices_2d"))?.extract()?;
+            let verts: Vec<[f32; 2]> = verts_2d
+                .into_iter()
+                .map(|v| [v[0] as f32, v[1] as f32])
+                .collect();
+            Ok(Self(ConvexPolygon::with_axes(
+                center, normal, u_axis, v_axis, verts,
+            )))
+        }
+    }
+
     impl From<PyShape> for AnyShape {
         fn from(s: PyShape) -> Self {
             match s {
@@ -450,6 +547,48 @@ pub mod pyo3_glue {
             for c in capsules {
                 collider.add(c.0);
             }
+            let planes: Vec<PyPlane> = ob
+                .call_method0(pyo3::intern!(py, "planes"))
+                .and_then(|v| v.extract())
+                .unwrap_or_default();
+            for p in planes {
+                collider.add(p.0);
+            }
+            let polytopes: Vec<PyConvexPolytope> = ob
+                .call_method0(pyo3::intern!(py, "polytopes"))
+                .and_then(|v| v.extract())
+                .unwrap_or_default();
+            for p in polytopes {
+                collider.add(p.0);
+            }
+            let polygons: Vec<PyConvexPolygon> = ob
+                .call_method0(pyo3::intern!(py, "polygons"))
+                .and_then(|v| v.extract())
+                .unwrap_or_default();
+            for p in polygons {
+                collider.add(p.0);
+            }
+            let lines: Vec<PyLine> = ob
+                .call_method0(pyo3::intern!(py, "lines"))
+                .and_then(|v| v.extract())
+                .unwrap_or_default();
+            for l in lines {
+                collider.add(l.0);
+            }
+            let rays: Vec<PyRay> = ob
+                .call_method0(pyo3::intern!(py, "rays"))
+                .and_then(|v| v.extract())
+                .unwrap_or_default();
+            for r in rays {
+                collider.add(r.0);
+            }
+            let segments: Vec<PyLineSegment> = ob
+                .call_method0(pyo3::intern!(py, "segments"))
+                .and_then(|v| v.extract())
+                .unwrap_or_default();
+            for s in segments {
+                collider.add(s.0);
+            }
             Ok(Self(collider))
         }
     }
@@ -492,6 +631,29 @@ pub mod pyo3_glue {
             }
             if let Ok(v) = ob.cast_exact::<PyPointcloud>() {
                 return Ok(Self::Pointcloud(v.get().clone()));
+            }
+            // A foreign shape (same Rust type, different module's class object)
+            // can't be cast_exact, and several kinds share an attribute surface
+            // (Capsule/Cylinder, Line/Ray), so route by class name before the
+            // permissive attribute fallback to avoid misclassification.
+            if let Ok(name) = ob
+                .get_type()
+                .getattr(pyo3::intern!(ob.py(), "__name__"))
+                .and_then(|n| n.extract::<String>())
+            {
+                match name.as_str() {
+                    "Sphere" => return Ok(Self::Sphere(ob.extract()?)),
+                    "Capsule" => return Ok(Self::Capsule(ob.extract()?)),
+                    "Cuboid" => return Ok(Self::Cuboid(ob.extract()?)),
+                    "Cylinder" => return Ok(Self::Cylinder(ob.extract()?)),
+                    "ConvexPolytope" => return Ok(Self::ConvexPolytope(ob.extract()?)),
+                    "ConvexPolygon" => return Ok(Self::ConvexPolygon(ob.extract()?)),
+                    "Line" => return Ok(Self::Line(ob.extract()?)),
+                    "Ray" => return Ok(Self::Ray(ob.extract()?)),
+                    "LineSegment" => return Ok(Self::LineSegment(ob.extract()?)),
+                    "Plane" => return Ok(Self::Plane(ob.extract()?)),
+                    _ => {}
+                }
             }
             if let Ok(v) = ob.extract::<PySphere>() {
                 return Ok(Self::Sphere(v));

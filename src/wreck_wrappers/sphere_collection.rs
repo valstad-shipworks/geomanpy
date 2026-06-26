@@ -67,7 +67,7 @@ mod pyo3_impl {
         fn clear(&mut self) {
             self.0.clear();
         }
-        fn any_collides_sphere(&self, sphere: &PySphere) -> bool {
+        fn any_collides_sphere(&self, sphere: PySphere) -> bool {
             self.0.any_collides_sphere(&sphere.0)
         }
         fn __len__(&self) -> usize {

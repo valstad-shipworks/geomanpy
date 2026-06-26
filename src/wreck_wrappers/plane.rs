@@ -4,7 +4,7 @@ use wreck::Plane;
 
 #[cfg_attr(
     feature = "pyo3-backend",
-    pyo3::pyclass(frozen, from_py_object, name = "Plane")
+    pyo3::pyclass(frozen, skip_from_py_object, name = "Plane")
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
