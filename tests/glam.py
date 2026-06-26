@@ -16,7 +16,9 @@ def duck(obj):
 def duck_cols(m):
     """Foreign clone of a matrix decoded via its to_cols_array() method."""
     cols = [float(v) for v in m.to_cols_array()]
-    return type(type(m).__name__, (), {"to_cols_array": lambda self, _c=cols: list(_c)})()
+    return type(
+        type(m).__name__, (), {"to_cols_array": lambda self, _c=cols: list(_c)}
+    )()
 
 
 def duck_affine(a):
@@ -95,11 +97,15 @@ def check_quat():
     d = duck(native)
     listform = [native.x, native.y, native.z, native.w]
 
-    assert cols_equal(Mat3.from_quat(native).to_cols_array(), Mat3.from_quat(d).to_cols_array())
+    assert cols_equal(
+        Mat3.from_quat(native).to_cols_array(), Mat3.from_quat(d).to_cols_array()
+    )
     assert cols_equal(
         Mat3.from_quat(native).to_cols_array(), Mat3.from_quat(listform).to_cols_array()
     )
-    assert cols_equal(Mat4.from_quat(native).to_cols_array(), Mat4.from_quat(d).to_cols_array())
+    assert cols_equal(
+        Mat4.from_quat(native).to_cols_array(), Mat4.from_quat(d).to_cols_array()
+    )
 
 
 def check_mat3():
@@ -110,7 +116,9 @@ def check_mat3():
     c_native = Cuboid.from_center_size_orientation(center, size, orientation)
     c_duck = Cuboid.from_center_size_orientation(center, size, duck_cols(orientation))
     assert c_native.center == c_duck.center
-    assert cols_equal(c_native.orientation.to_cols_array(), c_duck.orientation.to_cols_array())
+    assert cols_equal(
+        c_native.orientation.to_cols_array(), c_duck.orientation.to_cols_array()
+    )
     assert cols_equal(c_native.half_extents, c_duck.half_extents)
 
     assert cols_equal(
@@ -122,7 +130,9 @@ def check_mat3():
 def check_mat4():
     native = Mat4.from_rotation_y(0.35)
     d = duck_cols(native)
-    assert cols_equal(Mat3.from_mat4(native).to_cols_array(), Mat3.from_mat4(d).to_cols_array())
+    assert cols_equal(
+        Mat3.from_mat4(native).to_cols_array(), Mat3.from_mat4(d).to_cols_array()
+    )
     assert cols_equal(
         Affine3.from_mat4(native).to_cols_array(), Affine3.from_mat4(d).to_cols_array()
     )
@@ -133,7 +143,9 @@ def check_affine3():
     trans = Vec3(5.0, -2.0, 1.0)
     native = Affine3.from_mat3_translation(rot, trans)
     d = duck_affine(native)
-    assert cols_equal(Quat.from_affine3(native).to_array(), Quat.from_affine3(d).to_array())
+    assert cols_equal(
+        Quat.from_affine3(native).to_array(), Quat.from_affine3(d).to_array()
+    )
 
 
 def check_euler_rot():
@@ -155,4 +167,6 @@ def main() -> None:
     check_mat4()
     check_affine3()
     check_euler_rot()
-    print("ok glam FromPyObject decode-invariance: vec2/3/4, quat, mat3/4, affine3, eulerrot")
+    print(
+        "ok glam FromPyObject decode-invariance: vec2/3/4, quat, mat3/4, affine3, eulerrot"
+    )

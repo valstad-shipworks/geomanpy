@@ -72,7 +72,9 @@ def main() -> None:
             if ln == "Pointcloud" and rn == "Pointcloud":
                 continue
             native = lhs.collides(rhs)
-            assert isinstance(native, bool), f"{ln}.collides({rn}) returned non-bool {native!r}"
+            assert isinstance(native, bool), (
+                f"{ln}.collides({rn}) returned non-bool {native!r}"
+            )
             pairs += 1
             if not _field_names(rhs):
                 continue
@@ -83,7 +85,7 @@ def main() -> None:
             )
             duck_pairs += 1
 
-    s2 = 0.5 ** 0.5
+    s2 = 0.5**0.5
     oriented = Cuboid(
         [0.0, 0.0, 0.0],
         [[s2, s2, 0.0], [-s2, s2, 0.0], [0.0, 0.0, 1.0]],

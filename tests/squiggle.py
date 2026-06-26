@@ -46,7 +46,9 @@ def decode_invariance(native_a, native_b):
 
     diff_native = native_a.abs_diff_eq(native_b, EPS)
     diff_duck = native_a.abs_diff_eq(db, EPS)
-    assert diff_native is False, f"{type(native_a).__name__}: distinct pair not distinct"
+    assert diff_native is False, (
+        f"{type(native_a).__name__}: distinct pair not distinct"
+    )
     assert diff_duck == diff_native, (
         f"{type(native_a).__name__}: duck distinct-eq diverged ({diff_duck} != {diff_native})"
     )
@@ -136,4 +138,6 @@ def main() -> None:
     check_cubic_bezier()
     check_polyline()
     check_spline()
-    print("ok squiggle duck-decode: Interval, Nearest, QuadraticBezier, CubicBezier, Polyline, Spline")
+    print(
+        "ok squiggle duck-decode: Interval, Nearest, QuadraticBezier, CubicBezier, Polyline, Spline"
+    )
