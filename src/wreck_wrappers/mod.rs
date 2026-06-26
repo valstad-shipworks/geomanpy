@@ -295,17 +295,16 @@ pub mod pyo3_glue {
             }
             let py = ob.py();
             let center = extract_f32_vec3(&ob.getattr(pyo3::intern!(py, "center"))?)?;
-            let he: (f32, f32, f32) = ob.getattr(pyo3::intern!(py, "half_extents"))?.extract()?;
-            let axes: ((f32, f32, f32), (f32, f32, f32), (f32, f32, f32)) =
-                ob.getattr(pyo3::intern!(py, "axes"))?.extract()?;
+            let he: [f32; 3] = ob.getattr(pyo3::intern!(py, "half_extents"))?.extract()?;
+            let axes: [[f32; 3]; 3] = ob.getattr(pyo3::intern!(py, "axes"))?.extract()?;
             Ok(Self(Cuboid::new(
                 center,
                 [
-                    Vec3::new(axes.0.0, axes.0.1, axes.0.2),
-                    Vec3::new(axes.1.0, axes.1.1, axes.1.2),
-                    Vec3::new(axes.2.0, axes.2.1, axes.2.2),
+                    Vec3::new(axes[0][0], axes[0][1], axes[0][2]),
+                    Vec3::new(axes[1][0], axes[1][1], axes[1][2]),
+                    Vec3::new(axes[2][0], axes[2][1], axes[2][2]),
                 ],
-                [he.0, he.1, he.2],
+                he,
             )))
         }
     }
