@@ -4,7 +4,7 @@ use squiggle::Interval;
 
 #[cfg_attr(
     feature = "pyo3-backend",
-    pyo3::pyclass(frozen, skip_from_py_object, name = "Interval")
+    pyo3::pyclass(module = "geomanpy", frozen, skip_from_py_object, name = "Interval")
 )]
 #[cfg_attr(
     feature = "rustpython-backend",

@@ -4,7 +4,7 @@ use wreck::Capsule;
 
 #[cfg_attr(
     feature = "pyo3-backend",
-    pyo3::pyclass(frozen, skip_from_py_object, name = "Capsule")
+    pyo3::pyclass(module = "geomanpy", frozen, skip_from_py_object, name = "Capsule")
 )]
 #[cfg_attr(
     feature = "rustpython-backend",

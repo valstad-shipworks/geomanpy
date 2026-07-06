@@ -6,7 +6,7 @@ use squiggle::{CubicBezier, QuadraticBezier};
 
 #[cfg_attr(
     feature = "pyo3-backend",
-    pyo3::pyclass(frozen, skip_from_py_object, name = "QuadraticBezier")
+    pyo3::pyclass(module = "geomanpy", frozen, skip_from_py_object, name = "QuadraticBezier")
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
@@ -18,7 +18,7 @@ pub struct PyQuadraticBezier(pub QuadraticBezier);
 
 #[cfg_attr(
     feature = "pyo3-backend",
-    pyo3::pyclass(frozen, skip_from_py_object, name = "CubicBezier")
+    pyo3::pyclass(module = "geomanpy", frozen, skip_from_py_object, name = "CubicBezier")
 )]
 #[cfg_attr(
     feature = "rustpython-backend",

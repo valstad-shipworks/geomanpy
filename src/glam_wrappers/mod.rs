@@ -31,7 +31,7 @@ use pyo3::prelude::*;
 
 #[cfg_attr(
     feature = "pyo3-backend",
-    pyo3::pyclass(eq, eq_int, from_py_object, name = "EulerRot")
+    pyo3::pyclass(module = "geomanpy", eq, eq_int, from_py_object, name = "EulerRot")
 )]
 #[cfg_attr(
     feature = "rustpython-backend",

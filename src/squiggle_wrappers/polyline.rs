@@ -4,7 +4,7 @@ use squiggle::Polyline;
 
 #[cfg_attr(
     feature = "pyo3-backend",
-    pyo3::pyclass(frozen, skip_from_py_object, name = "Polyline")
+    pyo3::pyclass(module = "geomanpy", frozen, skip_from_py_object, name = "Polyline")
 )]
 #[cfg_attr(
     feature = "rustpython-backend",

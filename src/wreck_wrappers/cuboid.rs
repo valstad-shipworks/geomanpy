@@ -4,7 +4,7 @@ use wreck::Cuboid;
 
 #[cfg_attr(
     feature = "pyo3-backend",
-    pyo3::pyclass(frozen, skip_from_py_object, name = "Cuboid")
+    pyo3::pyclass(module = "geomanpy", frozen, skip_from_py_object, name = "Cuboid")
 )]
 #[cfg_attr(
     feature = "rustpython-backend",

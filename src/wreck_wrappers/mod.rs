@@ -43,7 +43,7 @@ pub use sphere_collection::PySphereCollection;
 // registered class for API parity, while shapes are passed and returned
 // directly via the dispatch helpers below. Under pyo3 it's a tagged enum.
 #[cfg(feature = "pyo3-backend")]
-#[pyo3::pyclass(frozen, skip_from_py_object, name = "Shape")]
+#[pyo3::pyclass(module = "geomanpy", frozen, skip_from_py_object, name = "Shape")]
 #[derive(Debug, Clone)]
 pub enum PyShape {
     Sphere(PySphere),

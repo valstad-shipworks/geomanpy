@@ -4,7 +4,7 @@ use wreck::{Collider, Pointcloud};
 
 #[cfg_attr(
     feature = "pyo3-backend",
-    pyo3::pyclass(skip_from_py_object, name = "Collider")
+    pyo3::pyclass(module = "geomanpy", skip_from_py_object, name = "Collider")
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
