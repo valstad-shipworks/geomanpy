@@ -24,6 +24,12 @@ harness = false
 required-features = ["pyo3-backend"]
 
 [[test]]
+name = "collider_py"
+path = "tests/collider_py.rs"
+harness = false
+required-features = ["pyo3-backend"]
+
+[[test]]
 name = "squiggle_py"
 path = "tests/squiggle_py.rs"
 harness = false

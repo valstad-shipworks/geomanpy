@@ -20,7 +20,7 @@ mod pyo3_impl {
     use crate::glam_wrappers::PyDVec3;
     use crate::pickle::pickle_decode;
     use crate::wreck_wrappers::pyo3_glue::{dv3, v3d};
-    use crate::wreck_wrappers::{PyCapsule, PyShape};
+    use crate::wreck_wrappers::{AnyShape, PyCapsule};
     use pyo3::PyResult;
     use pyo3::prelude::*;
     use wreck::Stretchable;
@@ -53,10 +53,10 @@ mod pyo3_impl {
         fn radius(&self) -> f64 {
             self.0.radius as f64
         }
-        fn stretch(&self, translation: PyDVec3) -> Vec<PyShape> {
+        fn stretch(&self, translation: PyDVec3) -> Vec<AnyShape> {
             match self.0.stretch(dv3(translation)) {
-                SphereStretch::NoStretch(s) => vec![PyShape::Sphere(PySphere(s))],
-                SphereStretch::Stretch(c) => vec![PyShape::Capsule(PyCapsule(c))],
+                SphereStretch::NoStretch(s) => vec![AnyShape::Sphere(PySphere(s))],
+                SphereStretch::Stretch(c) => vec![AnyShape::Capsule(PyCapsule(c))],
             }
         }
         fn __repr__(&self) -> String {

@@ -2,8 +2,9 @@
 //! pyo3 and rustpython backends via `cfg_attr`.
 //!
 //! Each shape lives in its own module with both backends' method impls. The
-//! cross-cutting machinery (the `Shape` tag enum, the uniform trait-forwarding
-//! macros, polymorphic dispatch helpers, and registration) lives here.
+//! cross-cutting machinery (the `Shape` marker class, the uniform
+//! trait-forwarding macros, polymorphic dispatch helpers, and registration)
+//! lives here.
 
 use wreck::{
     Capsule, Collider, ConvexPolygon, ConvexPolytope, Cuboid, Cylinder, Line, LineSegment, Plane,
@@ -41,29 +42,18 @@ pub use sphere_collection::PySphereCollection;
 // `Shape` is the nominal base of every concrete shape (see the type stubs).
 // Neither backend makes the shapes true runtime subclasses; `Shape` exists as a
 // registered class for API parity, while shapes are passed and returned
-// directly via the dispatch helpers below. Under pyo3 it's a tagged enum.
-#[cfg(feature = "pyo3-backend")]
-#[pyo3::pyclass(module = "geomanpy", frozen, skip_from_py_object, name = "Shape")]
+// directly via the dispatch helpers below. Rust-side values travel as
+// [`AnyShape`], never as this marker.
+#[cfg_attr(
+    feature = "pyo3-backend",
+    pyo3::pyclass(module = "geomanpy", frozen, skip_from_py_object, name = "Shape")
+)]
+#[cfg_attr(
+    feature = "rustpython-backend",
+    rustpython_vm::pyclass(module = "geomanpy", name = "Shape")
+)]
+#[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone)]
-pub enum PyShape {
-    Sphere(PySphere),
-    Capsule(PyCapsule),
-    Cuboid(PyCuboid),
-    Cylinder(PyCylinder),
-    ConvexPolytope(PyConvexPolytope),
-    ConvexPolygon(PyConvexPolygon),
-    Line(PyLine),
-    Ray(PyRay),
-    LineSegment(PyLineSegment),
-    Plane(PyPlane),
-    Pointcloud(PyPointcloud),
-}
-
-// RustPython has no pyclass-on-enum macro, so `Shape` is a payload-less marker
-// class there.
-#[cfg(feature = "rustpython-backend")]
-#[rustpython_vm::pyclass(module = "geomanpy", name = "Shape")]
-#[derive(Debug, Clone, rustpython_vm::PyPayload)]
 pub struct PyShape;
 
 #[cfg(feature = "rustpython-backend")]
@@ -81,9 +71,10 @@ mod rustpython_shape {
 }
 
 /// A single concrete shape — the backend-agnostic union every Python shape
-/// converts into. Both backends produce one of these (pyo3 via `From<PyShape>`
-/// / `FromPyObject`, rustpython via [`AnyShape::try_from_object`]) so a Rust
-/// method can accept any shape and dispatch with a single `match`. Unlike
+/// converts into. Both backends produce one of these (pyo3 via `FromPyObject`,
+/// rustpython via [`AnyShape::try_from_object`]) so a Rust method can accept
+/// any shape and dispatch with a single `match`. Returning one hands Python
+/// back the concrete class it came from. Unlike
 /// [`Collider`], which aggregates many shapes, an `AnyShape` holds exactly one.
 #[cfg(feature = "not_build_only")]
 #[derive(Debug, Clone)]
@@ -434,39 +425,28 @@ pub mod pyo3_glue {
         }
     }
 
-    impl From<PyShape> for AnyShape {
-        fn from(s: PyShape) -> Self {
-            match s {
-                PyShape::Sphere(v) => AnyShape::Sphere(v),
-                PyShape::Capsule(v) => AnyShape::Capsule(v),
-                PyShape::Cuboid(v) => AnyShape::Cuboid(v),
-                PyShape::Cylinder(v) => AnyShape::Cylinder(v),
-                PyShape::ConvexPolytope(v) => AnyShape::ConvexPolytope(v),
-                PyShape::ConvexPolygon(v) => AnyShape::ConvexPolygon(v),
-                PyShape::Line(v) => AnyShape::Line(v),
-                PyShape::Ray(v) => AnyShape::Ray(v),
-                PyShape::LineSegment(v) => AnyShape::LineSegment(v),
-                PyShape::Plane(v) => AnyShape::Plane(v),
-                PyShape::Pointcloud(v) => AnyShape::Pointcloud(v),
-            }
-        }
-    }
+    // Hand back the concrete wrapper class (`Sphere`, `Plane`, …) rather than a
+    // `Shape`-tagged stand-in, so returned shapes carry the same methods,
+    // attributes and pickle support as ones built from Python.
+    impl<'py> pyo3::IntoPyObject<'py> for AnyShape {
+        type Target = pyo3::PyAny;
+        type Output = pyo3::Bound<'py, pyo3::PyAny>;
+        type Error = pyo3::PyErr;
 
-    impl From<AnyShape> for PyShape {
-        fn from(s: AnyShape) -> Self {
-            match s {
-                AnyShape::Sphere(v) => PyShape::Sphere(v),
-                AnyShape::Capsule(v) => PyShape::Capsule(v),
-                AnyShape::Cuboid(v) => PyShape::Cuboid(v),
-                AnyShape::Cylinder(v) => PyShape::Cylinder(v),
-                AnyShape::ConvexPolytope(v) => PyShape::ConvexPolytope(v),
-                AnyShape::ConvexPolygon(v) => PyShape::ConvexPolygon(v),
-                AnyShape::Line(v) => PyShape::Line(v),
-                AnyShape::Ray(v) => PyShape::Ray(v),
-                AnyShape::LineSegment(v) => PyShape::LineSegment(v),
-                AnyShape::Plane(v) => PyShape::Plane(v),
-                AnyShape::Pointcloud(v) => PyShape::Pointcloud(v),
-            }
+        fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+            Ok(match self {
+                AnyShape::Sphere(v) => pyo3::Bound::new(py, v)?.into_any(),
+                AnyShape::Capsule(v) => pyo3::Bound::new(py, v)?.into_any(),
+                AnyShape::Cuboid(v) => pyo3::Bound::new(py, v)?.into_any(),
+                AnyShape::Cylinder(v) => pyo3::Bound::new(py, v)?.into_any(),
+                AnyShape::ConvexPolytope(v) => pyo3::Bound::new(py, v)?.into_any(),
+                AnyShape::ConvexPolygon(v) => pyo3::Bound::new(py, v)?.into_any(),
+                AnyShape::Line(v) => pyo3::Bound::new(py, v)?.into_any(),
+                AnyShape::Ray(v) => pyo3::Bound::new(py, v)?.into_any(),
+                AnyShape::LineSegment(v) => pyo3::Bound::new(py, v)?.into_any(),
+                AnyShape::Plane(v) => pyo3::Bound::new(py, v)?.into_any(),
+                AnyShape::Pointcloud(v) => pyo3::Bound::new(py, v)?.into_any(),
+            })
         }
     }
 
@@ -485,7 +465,6 @@ pub mod pyo3_glue {
                 return Ok(Self(collider));
             }
             if let Ok(iter) = ob.try_iter() {
-                let mut any = false;
                 for item in iter {
                     let item = item?;
                     let shape: AnyShape = item.extract().map_err(|_| {
@@ -494,14 +473,18 @@ pub mod pyo3_glue {
                         )
                     })?;
                     shape.push_into(&mut collider);
-                    any = true;
                 }
-                if any {
-                    return Ok(Self(collider));
-                }
+                return Ok(Self(collider));
             }
+
+            // A `Collider` from another module can't be `cast_exact`, so rebuild
+            // it from its accessors. Every kind the collider can hold must be
+            // read back here, or shapes are dropped on the way through.
             let py = ob.py();
+            let mut matched = false;
+
             if let Ok(spheres_obj) = ob.call_method0(pyo3::intern!(py, "spheres")) {
+                matched = true;
                 if let Ok(soa) = spheres_obj.extract::<PySphereCollection>() {
                     let n = soa.0.len();
                     for i in 0..n {
@@ -525,68 +508,45 @@ pub mod pyo3_glue {
                     }
                 }
             }
-            let cuboids: Vec<PyCuboid> = ob
-                .call_method0(pyo3::intern!(py, "cuboids"))
-                .and_then(|v| v.extract())
-                .unwrap_or_default();
-            for b in cuboids {
-                collider.add(b.0);
+
+            macro_rules! drain_kind {
+                ($method:literal, $ty:ty) => {
+                    if let Ok(v) = ob.call_method0(pyo3::intern!(py, $method)) {
+                        matched = true;
+                        let items: Vec<$ty> = v.extract().map_err(|e| {
+                            pyo3::exceptions::PyTypeError::new_err(format!(
+                                concat!(
+                                    "PyCollider: ",
+                                    $method,
+                                    "() is not a sequence of shapes: {}"
+                                ),
+                                e
+                            ))
+                        })?;
+                        for item in items {
+                            collider.add(item.0);
+                        }
+                    }
+                };
             }
-            let cylinders: Vec<PyCylinder> = ob
-                .call_method0(pyo3::intern!(py, "cylinders"))
-                .and_then(|v| v.extract())
-                .unwrap_or_default();
-            for c in cylinders {
-                collider.add(c.0);
-            }
-            let capsules: Vec<PyCapsule> = ob
-                .call_method0(pyo3::intern!(py, "capsules"))
-                .and_then(|v| v.extract())
-                .unwrap_or_default();
-            for c in capsules {
-                collider.add(c.0);
-            }
-            let planes: Vec<PyPlane> = ob
-                .call_method0(pyo3::intern!(py, "planes"))
-                .and_then(|v| v.extract())
-                .unwrap_or_default();
-            for p in planes {
-                collider.add(p.0);
-            }
-            let polytopes: Vec<PyConvexPolytope> = ob
-                .call_method0(pyo3::intern!(py, "polytopes"))
-                .and_then(|v| v.extract())
-                .unwrap_or_default();
-            for p in polytopes {
-                collider.add(p.0);
-            }
-            let polygons: Vec<PyConvexPolygon> = ob
-                .call_method0(pyo3::intern!(py, "polygons"))
-                .and_then(|v| v.extract())
-                .unwrap_or_default();
-            for p in polygons {
-                collider.add(p.0);
-            }
-            let lines: Vec<PyLine> = ob
-                .call_method0(pyo3::intern!(py, "lines"))
-                .and_then(|v| v.extract())
-                .unwrap_or_default();
-            for l in lines {
-                collider.add(l.0);
-            }
-            let rays: Vec<PyRay> = ob
-                .call_method0(pyo3::intern!(py, "rays"))
-                .and_then(|v| v.extract())
-                .unwrap_or_default();
-            for r in rays {
-                collider.add(r.0);
-            }
-            let segments: Vec<PyLineSegment> = ob
-                .call_method0(pyo3::intern!(py, "segments"))
-                .and_then(|v| v.extract())
-                .unwrap_or_default();
-            for s in segments {
-                collider.add(s.0);
+
+            drain_kind!("capsules", PyCapsule);
+            drain_kind!("cuboids", PyCuboid);
+            drain_kind!("cylinders", PyCylinder);
+            drain_kind!("planes", PyPlane);
+            drain_kind!("polytopes", PyConvexPolytope);
+            drain_kind!("polygons", PyConvexPolygon);
+            drain_kind!("lines", PyLine);
+            drain_kind!("rays", PyRay);
+            drain_kind!("segments", PyLineSegment);
+            drain_kind!("pointclouds", PyPointcloud);
+
+            if !matched {
+                return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+                    "expected a Shape, a sequence of Shapes, or a Collider-like \
+                     object; `{}` exposes none of the collider accessors",
+                    ob.get_type().name()?,
+                )));
             }
             Ok(Self(collider))
         }
@@ -595,9 +555,6 @@ pub mod pyo3_glue {
     impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for AnyShape {
         type Error = pyo3::PyErr;
         fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
-            if let Ok(v) = ob.cast_exact::<PyShape>() {
-                return Ok(v.get().clone().into());
-            }
             if let Ok(v) = ob.cast_exact::<PySphere>() {
                 return Ok(Self::Sphere(*v.get()));
             }
@@ -693,16 +650,6 @@ pub mod pyo3_glue {
         }
     }
 
-    // `PyShape` accepts any shape as a function argument by reusing the
-    // `AnyShape` extraction, so a Rust signature can read `PyShape` and a bare
-    // `Cuboid`/`Sphere`/… from Python is converted into it.
-    impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyShape {
-        type Error = pyo3::PyErr;
-        fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
-            Ok(ob.extract::<AnyShape>()?.into())
-        }
-    }
-
     macro_rules! impl_transform_scale_py {
         ($ty:ty) => {
             #[pyo3::pymethods]
@@ -747,8 +694,8 @@ pub mod pyo3_glue {
         ($ty:ty) => {
             #[pyo3::pymethods]
             impl $ty {
-                fn collides(&self, other: PyShape) -> bool {
-                    AnyShape::from(other).collides_with(&self.0)
+                fn collides(&self, other: AnyShape) -> bool {
+                    other.collides_with(&self.0)
                 }
             }
         };
@@ -758,14 +705,12 @@ pub mod pyo3_glue {
         ($ty:ty) => {
             #[pyo3::pymethods]
             impl $ty {
-                fn collides(&self, other: PyShape) -> pyo3::PyResult<bool> {
-                    AnyShape::from(other)
-                        .collides_with_no_pcl(&self.0)
-                        .ok_or_else(|| {
-                            pyo3::exceptions::PyValueError::new_err(
-                                "Pointcloud-Pointcloud collision is not supported",
-                            )
-                        })
+                fn collides(&self, other: AnyShape) -> pyo3::PyResult<bool> {
+                    other.collides_with_no_pcl(&self.0).ok_or_else(|| {
+                        pyo3::exceptions::PyValueError::new_err(
+                            "Pointcloud-Pointcloud collision is not supported",
+                        )
+                    })
                 }
             }
         };

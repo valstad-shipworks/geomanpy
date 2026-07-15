@@ -20,7 +20,7 @@ mod pyo3_impl {
     use crate::glam_wrappers::{PyDMat3, PyDVec3};
     use crate::pickle::pickle_decode;
     use crate::wreck_wrappers::pyo3_glue::{dv3, v3d};
-    use crate::wreck_wrappers::{PyConvexPolytope, PyShape};
+    use crate::wreck_wrappers::{AnyShape, PyConvexPolytope};
     use pyo3::PyResult;
     use pyo3::prelude::*;
     use wreck::Stretchable;
@@ -82,15 +82,15 @@ mod pyo3_impl {
                 radius,
             ))
         }
-        fn stretch(&self, translation: PyDVec3) -> Vec<PyShape> {
+        fn stretch(&self, translation: PyDVec3) -> Vec<AnyShape> {
             match self.0.stretch(dv3(translation)) {
-                CapsuleStretch::Aligned(c) => vec![PyShape::Capsule(PyCapsule(c))],
+                CapsuleStretch::Aligned(c) => vec![AnyShape::Capsule(PyCapsule(c))],
                 CapsuleStretch::Unaligned(edges, poly) => {
-                    let mut out: Vec<PyShape> = edges
+                    let mut out: Vec<AnyShape> = edges
                         .into_iter()
-                        .map(|c| PyShape::Capsule(PyCapsule(c)))
+                        .map(|c| AnyShape::Capsule(PyCapsule(c)))
                         .collect();
-                    out.push(PyShape::ConvexPolytope(PyConvexPolytope(poly)));
+                    out.push(AnyShape::ConvexPolytope(PyConvexPolytope(poly)));
                     out
                 }
             }

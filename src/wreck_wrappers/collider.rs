@@ -21,7 +21,7 @@ mod pyo3_impl {
     use crate::pickle::pickle_decode;
     use crate::wreck_wrappers::{
         AnyShape, PyCapsule, PyConvexPolygon, PyConvexPolytope, PyCuboid, PyCylinder, PyLine,
-        PyLineSegment, PyPlane, PyPointcloud, PyRay, PyShape, PySphereCollection,
+        PyLineSegment, PyPlane, PyPointcloud, PyRay, PySphereCollection,
     };
     use pyo3::PyResult;
     use pyo3::prelude::*;
@@ -40,8 +40,8 @@ mod pyo3_impl {
         fn from_any(obstacles: PyCollider) -> Self {
             obstacles
         }
-        fn add(&mut self, shape: PyShape) {
-            AnyShape::from(shape).push_into(&mut self.0);
+        fn add(&mut self, shape: AnyShape) {
+            shape.push_into(&mut self.0);
         }
         fn include(&mut self, other: PyCollider) {
             self.0.include(other.0);
@@ -56,8 +56,8 @@ mod pyo3_impl {
             out.include(obstacle.0);
             Self(out)
         }
-        fn collides(&self, shape: PyShape) -> PyResult<bool> {
-            AnyShape::from(shape).query_collider(&self.0).ok_or_else(|| {
+        fn collides(&self, shape: AnyShape) -> PyResult<bool> {
+            shape.query_collider(&self.0).ok_or_else(|| {
                 pyo3::exceptions::PyValueError::new_err(
                     "Pointcloud cannot query a Collider<Pointcloud>; use individual shape queries instead",
                 )

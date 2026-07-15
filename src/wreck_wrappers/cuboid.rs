@@ -20,7 +20,7 @@ mod pyo3_impl {
     use crate::glam_wrappers::{PyDMat3, PyDVec3};
     use crate::pickle::pickle_decode;
     use crate::wreck_wrappers::pyo3_glue::{dv3, v3d};
-    use crate::wreck_wrappers::{PyConvexPolytope, PyShape};
+    use crate::wreck_wrappers::{AnyShape, PyConvexPolytope};
     use glam::Vec3;
     use pyo3::PyResult;
     use pyo3::prelude::*;
@@ -121,10 +121,10 @@ mod pyo3_impl {
         fn bounding_sphere_radius(&self) -> f64 {
             self.0.bounding_sphere_radius() as f64
         }
-        fn stretch(&self, translation: PyDVec3) -> Vec<PyShape> {
+        fn stretch(&self, translation: PyDVec3) -> Vec<AnyShape> {
             match self.0.stretch(dv3(translation)) {
-                CuboidStretch::Aligned(c) => vec![PyShape::Cuboid(PyCuboid(c))],
-                CuboidStretch::Unaligned(p) => vec![PyShape::ConvexPolytope(PyConvexPolytope(p))],
+                CuboidStretch::Aligned(c) => vec![AnyShape::Cuboid(PyCuboid(c))],
+                CuboidStretch::Unaligned(p) => vec![AnyShape::ConvexPolytope(PyConvexPolytope(p))],
             }
         }
         fn __repr__(&self) -> String {

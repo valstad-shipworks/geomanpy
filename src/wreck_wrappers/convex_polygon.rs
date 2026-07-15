@@ -25,7 +25,7 @@ mod pyo3_impl {
     use crate::glam_wrappers::PyDVec3;
     use crate::pickle::pickle_decode;
     use crate::wreck_wrappers::pyo3_glue::{dv3, v3d};
-    use crate::wreck_wrappers::{PyConvexPolytope, PyShape};
+    use crate::wreck_wrappers::{AnyShape, PyConvexPolytope};
     use pyo3::PyResult;
     use pyo3::prelude::*;
     use wreck::Stretchable;
@@ -101,13 +101,13 @@ mod pyo3_impl {
                 .map(|v| [v[0] as f64, v[1] as f64])
                 .collect()
         }
-        fn stretch(&self, translation: PyDVec3) -> Vec<PyShape> {
+        fn stretch(&self, translation: PyDVec3) -> Vec<AnyShape> {
             match self.0.stretch(dv3(translation)) {
                 ConvexPolygonStretch::InPlane(p) => {
-                    vec![PyShape::ConvexPolygon(PyConvexPolygon(p))]
+                    vec![AnyShape::ConvexPolygon(PyConvexPolygon(p))]
                 }
                 ConvexPolygonStretch::OutOfPlane(p) => {
-                    vec![PyShape::ConvexPolytope(PyConvexPolytope(p))]
+                    vec![AnyShape::ConvexPolytope(PyConvexPolytope(p))]
                 }
             }
         }
