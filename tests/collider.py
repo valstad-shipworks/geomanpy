@@ -161,14 +161,10 @@ def test_duck_roundtrip(failures):
     want, got = _kind_counts(src), _kind_counts(duck)
     for kind in want:
         if want[kind] != got[kind]:
-            failures.append(
-                f"duck: {kind} count {got[kind]} != native {want[kind]}"
-            )
+            failures.append(f"duck: {kind} count {got[kind]} != native {want[kind]}")
 
     if src.mask() != duck.mask():
-        failures.append(
-            f"duck: mask 0x{duck.mask():04x} != native 0x{src.mask():04x}"
-        )
+        failures.append(f"duck: mask 0x{duck.mask():04x} != native 0x{src.mask():04x}")
 
     want_p, got_p = _probe_map(src), _probe_map(duck)
     for name in want_p:
