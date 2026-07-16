@@ -649,7 +649,7 @@ mod rustpython_impl {
         }
     }
     use rustpython_vm::{
-        Py, PyObject, PyObjectRef, PyPayload, PyResult, TryFromObject, VirtualMachine,
+        Py, PyObject, PyObjectRef, PyPayload, PyRef, PyResult, TryFromObject, VirtualMachine,
         builtins::PyType,
         function::{FuncArgs, PyComparisonValue},
         protocol::PyNumberMethods,
@@ -666,20 +666,36 @@ mod rustpython_impl {
                         .map_err(|e| vm.new_value_error(e))?,
                 ));
             }
-            if args.args.is_empty() {
-                return Ok(Self(DMat4::IDENTITY));
+            if args.args.len() > 4 {
+                return Err(vm.new_type_error(format!(
+                    "Mat4() takes at most 4 positional arguments, got {}",
+                    args.args.len()
+                )));
             }
-            if args.args.len() == 4 {
-                let x = extract_vec4(&args.args[0], vm)?;
-                let y = extract_vec4(&args.args[1], vm)?;
-                let z = extract_vec4(&args.args[2], vm)?;
-                let w = extract_vec4(&args.args[3], vm)?;
-                return Ok(Self(DMat4::from_cols(x, y, z, w)));
+            let names = ["x_axis", "y_axis", "z_axis", "w_axis"];
+            let mut axes = [None; 4];
+            for (slot, obj) in axes.iter_mut().zip(&args.args) {
+                *slot = Some(extract_vec4(obj, vm)?);
             }
-            Err(vm.new_type_error(format!(
-                "Mat4() takes 0 or 4 positional arguments, got {}",
-                args.args.len()
-            )))
+            for (name, obj) in &args.kwargs {
+                let Some(i) = names.iter().position(|&n| n == name.as_str()) else {
+                    return Err(vm.new_type_error(format!(
+                        "Mat4() got an unexpected keyword argument '{name}'"
+                    )));
+                };
+                if axes[i].is_some() {
+                    return Err(vm.new_type_error(format!(
+                        "Mat4() got multiple values for argument '{name}'"
+                    )));
+                }
+                axes[i] = Some(extract_vec4(obj, vm)?);
+            }
+            match axes {
+                [Some(x), Some(y), Some(z), Some(w)] => Ok(Self(DMat4::from_cols(x, y, z, w))),
+                _ => Err(vm.new_value_error(
+                    "Mat4 requires x_axis, y_axis, z_axis, w_axis arguments".to_owned(),
+                )),
+            }
         }
     }
 
@@ -707,6 +723,11 @@ mod rustpython_impl {
                 c[3][3],
             ))
         }
+    }
+
+    impl PyDMat4 {
+        pub(crate) const DATACLASS_FIELDS: &'static [&'static str] =
+            &["x_axis", "y_axis", "z_axis", "w_axis"];
     }
 
     #[pyclass(with(Constructor, Representable, AsNumber, Comparable, Hashable))]
@@ -1226,8 +1247,8 @@ mod rustpython_impl {
             crate::rp_serde::getnewargs_ex(&self.0, vm)
         }
         #[pygetset]
-        fn __dataclass_fields__(&self, vm: &VirtualMachine) -> PyObjectRef {
-            crate::rp_serde::dataclass_fields(&["x_axis", "y_axis", "z_axis", "w_axis"], vm)
+        fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::dataclass_dict(zelf.into(), Self::DATACLASS_FIELDS, vm)
         }
     }
 

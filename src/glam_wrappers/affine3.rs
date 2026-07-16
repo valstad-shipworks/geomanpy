@@ -338,7 +338,7 @@ mod rustpython_impl {
         PyDMat3, PyDMat4, PyDQuat, PyDVec3, quat::extract_quat, vec3::extract_vec3,
     };
     use rustpython_vm::{
-        Py, PyObject, PyObjectRef, PyPayload, PyResult, VirtualMachine,
+        Py, PyObject, PyObjectRef, PyPayload, PyRef, PyResult, VirtualMachine,
         builtins::PyType,
         function::{FuncArgs, PyComparisonValue},
         protocol::PyNumberMethods,
@@ -367,15 +367,42 @@ mod rustpython_impl {
                         .map_err(|e| vm.new_value_error(e))?,
                 ));
             }
-            match args.args.len() {
-                2 => {
-                    let translation = extract_vec3(&args.args[0], vm)?;
-                    let rotation = extract_mat3(&args.args[1], vm)?;
+            if args.args.len() > 2 {
+                return Err(vm.new_type_error(format!(
+                    "Affine3() takes 2 positional arguments (translation, rotation), got {}",
+                    args.args.len()
+                )));
+            }
+            let mut kwargs = args.kwargs;
+            let mut positional = args.args.into_iter();
+            let mut take = |name: &str| match positional.next() {
+                Some(v) => {
+                    if kwargs.swap_remove(name).is_some() {
+                        Err(vm.new_type_error(format!(
+                            "Affine3() got multiple values for argument '{name}'"
+                        )))
+                    } else {
+                        Ok(Some(v))
+                    }
+                }
+                None => Ok(kwargs.swap_remove(name)),
+            };
+            let translation = take("translation")?;
+            let rotation = take("rotation")?;
+            if let Some(name) = kwargs.keys().next() {
+                return Err(vm.new_type_error(format!(
+                    "Affine3() got an unexpected keyword argument '{name}'"
+                )));
+            }
+            match (translation, rotation) {
+                (Some(t), Some(r)) => {
+                    let translation = extract_vec3(&t, vm)?;
+                    let rotation = extract_mat3(&r, vm)?;
                     Ok(Self(DAffine3::from_mat3_translation(rotation, translation)))
                 }
-                n => Err(vm.new_type_error(format!(
-                    "Affine3() takes 2 positional arguments (translation, rotation), got {n}"
-                ))),
+                _ => Err(vm.new_value_error(
+                    "Affine3 requires translation and rotation arguments".to_owned(),
+                )),
             }
         }
     }
@@ -388,6 +415,10 @@ mod rustpython_impl {
                 zelf.0.matrix3, zelf.0.translation
             ))
         }
+    }
+
+    impl PyDAffine3 {
+        pub(crate) const DATACLASS_FIELDS: &'static [&'static str] = &["matrix3", "translation"];
     }
 
     #[pyclass(with(Constructor, Representable, AsNumber, Comparable, Hashable))]
@@ -480,11 +511,11 @@ mod rustpython_impl {
         }
         #[pystaticmethod]
         fn just(component: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            if let Some(v) = component.downcast_ref::<PyDVec3>() {
-                return Ok(Self(DAffine3::from_translation(v.0)));
+            if let Ok(t) = extract_vec3(&component, vm) {
+                return Ok(Self(DAffine3::from_translation(t)));
             }
-            if let Some(m) = component.downcast_ref::<PyDMat3>() {
-                return Ok(Self(DAffine3::from_mat3(m.0)));
+            if let Ok(r) = extract_mat3(&component, vm) {
+                return Ok(Self(DAffine3::from_mat3(r)));
             }
             Err(vm.new_type_error("expected Vec3 or Mat3".to_owned()))
         }
@@ -683,8 +714,8 @@ mod rustpython_impl {
             crate::rp_serde::getnewargs_ex(&self.0, vm)
         }
         #[pygetset]
-        fn __dataclass_fields__(&self, vm: &VirtualMachine) -> PyObjectRef {
-            crate::rp_serde::dataclass_fields(&["matrix3", "translation"], vm)
+        fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::dataclass_dict(zelf.into(), Self::DATACLASS_FIELDS, vm)
         }
     }
 

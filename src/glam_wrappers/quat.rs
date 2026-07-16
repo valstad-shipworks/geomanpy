@@ -428,7 +428,7 @@ mod rustpython_impl {
     use crate::glam_wrappers::vec3::extract_vec3;
     use crate::glam_wrappers::{PyDAffine3, PyDMat3, PyDMat4, PyDVec3, PyEulerRot};
     use rustpython_vm::{
-        Py, PyObject, PyObjectRef, PyPayload, PyResult, TryFromObject, VirtualMachine,
+        Py, PyObject, PyObjectRef, PyPayload, PyRef, PyResult, TryFromObject, VirtualMachine,
         builtins::PyType,
         function::FuncArgs,
         pyclass,
@@ -488,20 +488,36 @@ mod rustpython_impl {
                         .map_err(|e| vm.new_value_error(e))?,
                 ));
             }
-            let (x, y, z, w) = match args.args.len() {
-                0 => (0.0, 0.0, 0.0, 1.0),
-                4 => (
-                    args.args[0].try_float(vm)?.to_f64(),
-                    args.args[1].try_float(vm)?.to_f64(),
-                    args.args[2].try_float(vm)?.to_f64(),
-                    args.args[3].try_float(vm)?.to_f64(),
-                ),
-                n => {
+            if args.args.len() > 4 {
+                return Err(vm.new_type_error(format!(
+                    "Quat() takes at most 4 positional arguments, got {}",
+                    args.args.len()
+                )));
+            }
+            let mut components = [0.0, 0.0, 0.0, 1.0];
+            for (i, obj) in args.args.iter().enumerate() {
+                components[i] = obj.try_float(vm)?.to_f64();
+            }
+            for (name, obj) in args.kwargs.iter() {
+                let idx = match name.as_str() {
+                    "x" => 0,
+                    "y" => 1,
+                    "z" => 2,
+                    "w" => 3,
+                    _ => {
+                        return Err(vm.new_type_error(format!(
+                            "Quat() got an unexpected keyword argument '{name}'"
+                        )));
+                    }
+                };
+                if idx < args.args.len() {
                     return Err(vm.new_type_error(format!(
-                        "Quat() takes 0 or 4 positional arguments, got {n}"
+                        "Quat() got multiple values for argument '{name}'"
                     )));
                 }
-            };
+                components[idx] = obj.try_float(vm)?.to_f64();
+            }
+            let [x, y, z, w] = components;
             Ok(PyDQuat(DQuat::from_xyzw(x, y, z, w)))
         }
     }
@@ -519,13 +535,13 @@ mod rustpython_impl {
             zelf: &Py<Self>,
             other: &PyObject,
             op: PyComparisonOp,
-            _vm: &VirtualMachine,
+            vm: &VirtualMachine,
         ) -> PyResult<rustpython_vm::function::PyComparisonValue> {
-            op.eq_only(|| match other.downcast_ref::<PyDQuat>() {
-                Some(o) => Ok(rustpython_vm::function::PyComparisonValue::Implemented(
-                    zelf.0 == o.0,
+            op.eq_only(|| match extract(&other.to_owned(), vm) {
+                Ok(o) => Ok(rustpython_vm::function::PyComparisonValue::Implemented(
+                    zelf.0 == o,
                 )),
-                None => Ok(rustpython_vm::function::PyComparisonValue::NotImplemented),
+                Err(_) => Ok(rustpython_vm::function::PyComparisonValue::NotImplemented),
             })
         }
     }
@@ -545,16 +561,16 @@ mod rustpython_impl {
     }
 
     fn quat_mul(a: &PyObject, b: &PyObject, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-        if let (Some(x), Some(y)) = (a.downcast_ref::<PyDQuat>(), b.downcast_ref::<PyDQuat>()) {
-            return Ok(PyDQuat(x.0 * y.0).into_pyobject(vm));
-        }
-        if let (Some(x), Some(v)) = (a.downcast_ref::<PyDQuat>(), b.downcast_ref::<PyDVec3>()) {
-            return Ok(PyDVec3(x.0 * v.0).into_pyobject(vm));
-        }
-        if let Some(x) = a.downcast_ref::<PyDQuat>()
-            && let Ok(s) = f64::try_from_object(vm, b.to_owned())
-        {
-            return Ok(PyDQuat(x.0 * s).into_pyobject(vm));
+        if let Some(x) = a.downcast_ref::<PyDQuat>() {
+            if let Ok(s) = f64::try_from_object(vm, b.to_owned()) {
+                return Ok(PyDQuat(x.0 * s).into_pyobject(vm));
+            }
+            if let Ok(y) = extract(&b.to_owned(), vm) {
+                return Ok(PyDQuat(x.0 * y).into_pyobject(vm));
+            }
+            if let Ok(v) = extract_vec3(&b.to_owned(), vm) {
+                return Ok(PyDVec3(x.0 * v).into_pyobject(vm));
+            }
         }
         if let Some(x) = b.downcast_ref::<PyDQuat>()
             && let Ok(s) = f64::try_from_object(vm, a.to_owned())
@@ -565,15 +581,19 @@ mod rustpython_impl {
     }
 
     fn quat_add(a: &PyObject, b: &PyObject, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-        if let (Some(x), Some(y)) = (a.downcast_ref::<PyDQuat>(), b.downcast_ref::<PyDQuat>()) {
-            return Ok(PyDQuat(x.0 + y.0).into_pyobject(vm));
+        if let Some(x) = a.downcast_ref::<PyDQuat>()
+            && let Ok(y) = extract(&b.to_owned(), vm)
+        {
+            return Ok(PyDQuat(x.0 + y).into_pyobject(vm));
         }
         Ok(vm.ctx.not_implemented())
     }
 
     fn quat_sub(a: &PyObject, b: &PyObject, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-        if let (Some(x), Some(y)) = (a.downcast_ref::<PyDQuat>(), b.downcast_ref::<PyDQuat>()) {
-            return Ok(PyDQuat(x.0 - y.0).into_pyobject(vm));
+        if let Some(x) = a.downcast_ref::<PyDQuat>()
+            && let Ok(y) = extract(&b.to_owned(), vm)
+        {
+            return Ok(PyDQuat(x.0 - y).into_pyobject(vm));
         }
         Ok(vm.ctx.not_implemented())
     }
@@ -603,6 +623,10 @@ mod rustpython_impl {
                 };
             &N
         }
+    }
+
+    impl PyDQuat {
+        pub(crate) const DATACLASS_FIELDS: &'static [&'static str] = &["x", "y", "z", "w"];
     }
 
     #[pyclass(with(Constructor, Representable, AsNumber, Comparable, Hashable))]
@@ -869,7 +893,7 @@ mod rustpython_impl {
         fn to_array(&self, vm: &VirtualMachine) -> PyObjectRef {
             let a = self.0.to_array();
             vm.ctx
-                .new_tuple(vec![
+                .new_list(vec![
                     vm.ctx.new_float(a[0]).into(),
                     vm.ctx.new_float(a[1]).into(),
                     vm.ctx.new_float(a[2]).into(),
@@ -943,8 +967,8 @@ mod rustpython_impl {
         }
 
         #[pygetset]
-        fn __dataclass_fields__(&self, vm: &VirtualMachine) -> PyObjectRef {
-            crate::rp_serde::dataclass_fields(&["x", "y", "z", "w"], vm)
+        fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::dataclass_dict(zelf.into(), Self::DATACLASS_FIELDS, vm)
         }
     }
 

@@ -29,20 +29,20 @@ mod pyo3_impl {
     #[pymethods]
     impl PyCapsule {
         #[new]
-        #[pyo3(signature = (p1=None, p2=None, radius=0.0, *, __pickle_state__=None))]
+        #[pyo3(signature = (p1=None, p2=None, radius=None, *, __pickle_state__=None))]
         fn new(
             p1: Option<PyDVec3>,
             p2: Option<PyDVec3>,
-            radius: f64,
+            radius: Option<f64>,
             __pickle_state__: Option<Vec<u8>>,
         ) -> PyResult<Self> {
             if let Some(state) = __pickle_state__ {
                 return Ok(Self(pickle_decode::<Capsule>(&state)?));
             }
-            match (p1, p2) {
-                (Some(a), Some(b)) => Ok(Self(Capsule::new(dv3(a), dv3(b), radius as f32))),
+            match (p1, p2, radius) {
+                (Some(a), Some(b), Some(r)) => Ok(Self(Capsule::new(dv3(a), dv3(b), r as f32))),
                 _ => Err(pyo3::exceptions::PyValueError::new_err(
-                    "Capsule requires p1, p2 arguments",
+                    "Capsule requires p1, p2, radius arguments",
                 )),
             }
         }
@@ -78,8 +78,8 @@ mod pyo3_impl {
             Self(Capsule::from_center_orientation(
                 center.0,
                 orientation.0,
-                length,
                 radius,
+                length,
             ))
         }
         fn stretch(&self, translation: PyDVec3) -> Vec<AnyShape> {
@@ -112,7 +112,7 @@ mod rustpython_impl {
     };
     use crate::wreck_wrappers::{PyConvexPolytope, PyCuboid, PySphere};
     use rustpython_vm::{
-        Py, PyObjectRef, PyPayload, PyResult, VirtualMachine,
+        Py, PyObjectRef, PyPayload, PyRef, PyResult, VirtualMachine,
         builtins::PyType,
         function::FuncArgs,
         pyclass,
@@ -130,12 +130,40 @@ mod rustpython_impl {
                         .map_err(|e| vm.new_value_error(e))?,
                 ));
             }
-            if args.args.len() != 3 {
-                return Err(vm.new_type_error("Capsule(p1, p2, radius) requires 3 args".to_owned()));
+            if args.args.len() > 3 {
+                return Err(vm.new_type_error(format!(
+                    "Capsule() takes at most 3 arguments ({} given)",
+                    args.args.len()
+                )));
             }
-            let p1 = dv3(extract_vec3(&args.args[0], vm)?);
-            let p2 = dv3(extract_vec3(&args.args[1], vm)?);
-            let r: f64 = args.args[2].try_float(vm)?.to_f64();
+            let mut p1 = args.args.first().cloned();
+            let mut p2 = args.args.get(1).cloned();
+            let mut radius = args.args.get(2).cloned();
+            for (name, value) in &args.kwargs {
+                let slot = match name.as_str() {
+                    "p1" => &mut p1,
+                    "p2" => &mut p2,
+                    "radius" => &mut radius,
+                    _ => {
+                        return Err(vm.new_type_error(format!(
+                            "Capsule() got an unexpected keyword argument '{name}'"
+                        )));
+                    }
+                };
+                if slot.replace(value.clone()).is_some() {
+                    return Err(vm.new_type_error(format!(
+                        "Capsule() got multiple values for argument '{name}'"
+                    )));
+                }
+            }
+            let (Some(p1), Some(p2), Some(radius)) = (p1, p2, radius) else {
+                return Err(
+                    vm.new_value_error("Capsule requires p1, p2, radius arguments".to_owned())
+                );
+            };
+            let p1 = dv3(extract_vec3(&p1, vm)?);
+            let p2 = dv3(extract_vec3(&p2, vm)?);
+            let r: f64 = radius.try_float(vm)?.to_f64();
             Ok(Self(Capsule::new(p1, p2, r as f32)))
         }
     }
@@ -144,6 +172,10 @@ mod rustpython_impl {
             Ok(zelf.0.to_string())
         }
     }
+    impl PyCapsule {
+        pub(crate) const DATACLASS_FIELDS: &'static [&'static str] = &["p1", "p2", "radius"];
+    }
+
     #[pyclass(with(Constructor, Representable))]
     impl PyCapsule {
         #[pygetset]
@@ -181,7 +213,7 @@ mod rustpython_impl {
         ) -> PyResult<Self> {
             let c = extract_vec3(&center, vm)?;
             let o = extract_mat3(&orientation, vm)?;
-            Ok(Self(Capsule::from_center_orientation(c, o, length, radius)))
+            Ok(Self(Capsule::from_center_orientation(c, o, radius, length)))
         }
 
         #[pymethod]
@@ -259,8 +291,8 @@ mod rustpython_impl {
             crate::rp_serde::getnewargs_ex(&self.0, vm)
         }
         #[pygetset]
-        fn __dataclass_fields__(&self, vm: &VirtualMachine) -> PyObjectRef {
-            crate::rp_serde::dataclass_fields(&["p1", "p2", "radius"], vm)
+        fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::dataclass_dict(zelf.into(), Self::DATACLASS_FIELDS, vm)
         }
     }
 }

@@ -105,7 +105,7 @@ mod rustpython_impl {
     use crate::squiggle_wrappers::vp;
     use crate::wreck_wrappers::rustpython_glue::dv3;
     use rustpython_vm::{
-        Py, PyObjectRef, PyResult, TryFromObject, VirtualMachine,
+        Py, PyObjectRef, PyRef, PyResult, TryFromObject, VirtualMachine,
         builtins::PyType,
         function::FuncArgs,
         pyclass,
@@ -144,6 +144,10 @@ mod rustpython_impl {
                 zelf.0.t, p.x, p.y, p.z, zelf.0.dist_sq
             ))
         }
+    }
+
+    impl PyNearest {
+        pub(crate) const DATACLASS_FIELDS: &'static [&'static str] = &["t", "point", "dist_sq"];
     }
 
     #[pyclass(with(Constructor, Representable))]
@@ -185,8 +189,8 @@ mod rustpython_impl {
             crate::rp_serde::getnewargs_ex(&self.0, vm)
         }
         #[pygetset]
-        fn __dataclass_fields__(&self, vm: &VirtualMachine) -> PyObjectRef {
-            crate::rp_serde::dataclass_fields(&["t", "point", "dist_sq"], vm)
+        fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::dataclass_dict(zelf.into(), Self::DATACLASS_FIELDS, vm)
         }
     }
 }

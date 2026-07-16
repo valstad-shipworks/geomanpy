@@ -66,6 +66,15 @@ pub(crate) fn endpoints<C: Curve>(c: &C) -> (PyDVec3, PyDVec3) {
 pub(crate) fn length<C: Curve>(c: &C) -> f64 {
     c.length() as f64
 }
+#[cfg_attr(feature = "rustpython-backend", allow(dead_code))]
+pub(crate) fn try_aabb<C: Bounds>(c: &C) -> Result<PyCuboid, String> {
+    let bb = c.aabb();
+    if bb.min.x > bb.max.x || bb.min.y > bb.max.y || bb.min.z > bb.max.z {
+        return Err("cannot compute the aabb of an empty curve".to_owned());
+    }
+    Ok(PyCuboid(wreck::Cuboid::from_aabb(bb.min, bb.max)))
+}
+#[cfg_attr(feature = "pyo3-backend", allow(dead_code))]
 pub(crate) fn aabb<C: Bounds>(c: &C) -> PyCuboid {
     let bb = c.aabb();
     PyCuboid(wreck::Cuboid::from_aabb(bb.min, bb.max))
@@ -137,8 +146,9 @@ mod pyo3_glue {
                 fn length(&self) -> f64 {
                     $crate::squiggle_wrappers::length(&self.0)
                 }
-                fn aabb(&self) -> $crate::wreck_wrappers::PyCuboid {
-                    $crate::squiggle_wrappers::aabb(&self.0)
+                fn aabb(&self) -> pyo3::PyResult<$crate::wreck_wrappers::PyCuboid> {
+                    $crate::squiggle_wrappers::try_aabb(&self.0)
+                        .map_err(pyo3::exceptions::PyValueError::new_err)
                 }
                 fn nearest(
                     &self,

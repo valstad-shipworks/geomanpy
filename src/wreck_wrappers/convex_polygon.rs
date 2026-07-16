@@ -127,9 +127,8 @@ mod rustpython_impl {
         dv3, extract_affine3, extract_mat3, shape_collides, v3d,
     };
     use crate::wreck_wrappers::{PyConvexPolytope, PyCuboid, PySphere};
-    use glam::Vec3;
     use rustpython_vm::{
-        Py, PyObjectRef, PyPayload, PyResult, VirtualMachine,
+        Py, PyObjectRef, PyPayload, PyRef, PyResult, VirtualMachine,
         builtins::PyType,
         function::FuncArgs,
         pyclass,
@@ -137,6 +136,21 @@ mod rustpython_impl {
     };
     use wreck::stretched::ConvexPolygonStretch;
     use wreck::{Scalable, Stretchable, Transformable};
+
+    fn extract_vertices_2d(obj: &PyObjectRef, vm: &VirtualMachine) -> PyResult<Vec<[f32; 2]>> {
+        let verts: Vec<Vec<f64>> = obj.try_to_value(vm)?;
+        verts
+            .into_iter()
+            .map(|v| {
+                if v.len() != 2 {
+                    return Err(
+                        vm.new_type_error("each vertex must be a 2-element sequence".to_owned())
+                    );
+                }
+                Ok([v[0] as f32, v[1] as f32])
+            })
+            .collect()
+    }
 
     impl Constructor for PyConvexPolygon {
         type Args = FuncArgs;
@@ -147,7 +161,42 @@ mod rustpython_impl {
                         .map_err(|e| vm.new_value_error(e))?,
                 ));
             }
-            Ok(Self(ConvexPolygon::new(Vec3::ZERO, Vec3::Z, Vec::new())))
+            if args.args.len() > 3 {
+                return Err(vm.new_type_error(format!(
+                    "ConvexPolygon() takes at most 3 arguments ({} given)",
+                    args.args.len()
+                )));
+            }
+            let mut center = args.args.first().cloned();
+            let mut normal = args.args.get(1).cloned();
+            let mut vertices_2d = args.args.get(2).cloned();
+            for (name, value) in &args.kwargs {
+                let slot = match name.as_str() {
+                    "center" => &mut center,
+                    "normal" => &mut normal,
+                    "vertices_2d" => &mut vertices_2d,
+                    _ => {
+                        return Err(vm.new_type_error(format!(
+                            "ConvexPolygon() got an unexpected keyword argument '{name}'"
+                        )));
+                    }
+                };
+                if slot.replace(value.clone()).is_some() {
+                    return Err(vm.new_type_error(format!(
+                        "ConvexPolygon() got multiple values for argument '{name}'"
+                    )));
+                }
+            }
+            let (Some(center), Some(normal), Some(vertices_2d)) = (center, normal, vertices_2d)
+            else {
+                return Err(vm.new_value_error(
+                    "ConvexPolygon requires center, normal, vertices_2d arguments".to_owned(),
+                ));
+            };
+            let center = dv3(extract_vec3(&center, vm)?);
+            let normal = dv3(extract_vec3(&normal, vm)?);
+            let verts = extract_vertices_2d(&vertices_2d, vm)?;
+            Ok(Self(ConvexPolygon::new(center, normal, verts)))
         }
     }
     impl Representable for PyConvexPolygon {
@@ -155,6 +204,11 @@ mod rustpython_impl {
             Ok(zelf.0.to_string())
         }
     }
+    impl PyConvexPolygon {
+        pub(crate) const DATACLASS_FIELDS: &'static [&'static str] =
+            &["center", "normal", "u_axis", "v_axis", "vertices_2d"];
+    }
+
     #[pyclass(with(Constructor, Representable))]
     impl PyConvexPolygon {
         #[pygetset]
@@ -173,7 +227,7 @@ mod rustpython_impl {
         fn v_axis(&self) -> PyDVec3 {
             v3d(self.0.v_axis)
         }
-        #[pymethod]
+        #[pygetset]
         fn vertices_2d(&self, vm: &VirtualMachine) -> PyObjectRef {
             let items: Vec<PyObjectRef> = self
                 .0
@@ -181,7 +235,7 @@ mod rustpython_impl {
                 .iter()
                 .map(|v| {
                     vm.ctx
-                        .new_tuple(vec![
+                        .new_list(vec![
                             vm.ctx.new_float(v[0] as f64).into(),
                             vm.ctx.new_float(v[1] as f64).into(),
                         ])
@@ -189,6 +243,23 @@ mod rustpython_impl {
                 })
                 .collect();
             vm.ctx.new_list(items).into()
+        }
+        #[pystaticmethod]
+        fn with_axes(
+            center: PyObjectRef,
+            normal: PyObjectRef,
+            u_axis: PyObjectRef,
+            v_axis: PyObjectRef,
+            vertices_2d: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<Self> {
+            Ok(Self(ConvexPolygon::with_axes(
+                dv3(extract_vec3(&center, vm)?),
+                dv3(extract_vec3(&normal, vm)?),
+                dv3(extract_vec3(&u_axis, vm)?),
+                dv3(extract_vec3(&v_axis, vm)?),
+                extract_vertices_2d(&vertices_2d, vm)?,
+            )))
         }
 
         #[pymethod]
@@ -259,11 +330,8 @@ mod rustpython_impl {
             crate::rp_serde::getnewargs_ex(&self.0, vm)
         }
         #[pygetset]
-        fn __dataclass_fields__(&self, vm: &VirtualMachine) -> PyObjectRef {
-            crate::rp_serde::dataclass_fields(
-                &["center", "normal", "u_axis", "v_axis", "vertices_2d"],
-                vm,
-            )
+        fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::dataclass_dict(zelf.into(), Self::DATACLASS_FIELDS, vm)
         }
     }
 }

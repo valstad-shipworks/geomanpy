@@ -11,7 +11,7 @@
 
 use rustpython_vm::{
     AsObject, PyObjectRef, PyResult, TryFromObject, VirtualMachine,
-    builtins::{PyBytes, PyDict, PyFloat, PyInt, PyList, PyStr},
+    builtins::{PyBytes, PyDict, PyFloat, PyInt, PyList, PyStr, PyTypeRef},
     function::FuncArgs,
 };
 use serde::Serialize;
@@ -136,8 +136,9 @@ pub fn take_pickle_state(args: &FuncArgs, vm: &VirtualMachine) -> PyResult<Optio
 }
 
 /// Build a `__dataclass_fields__` dict by constructing an ad-hoc dataclass via
-/// the stdlib `dataclasses` module. Falls back to an empty dict if the module
-/// is unavailable in the embedding.
+/// the stdlib `dataclasses` module. If the module is unavailable in the
+/// embedding, falls back to mapping each field name to `None` so consumers
+/// that iterate the keys still see the field set.
 pub fn dataclass_fields(names: &[&str], vm: &VirtualMachine) -> PyObjectRef {
     let build = || -> PyResult<PyObjectRef> {
         let dataclasses = vm.import("dataclasses", 0)?;
@@ -148,5 +149,34 @@ pub fn dataclass_fields(names: &[&str], vm: &VirtualMachine) -> PyObjectRef {
         let dummy = make_dc.call(vec![name, fields_list], vm)?;
         dummy.get_attr("__dataclass_fields__", vm)
     };
-    build().unwrap_or_else(|_| vm.ctx.new_dict().into())
+    build().unwrap_or_else(|_| {
+        let d = vm.ctx.new_dict();
+        for name in names {
+            let _ = d.set_item(*name, vm.ctx.none(), vm);
+        }
+        d.into()
+    })
+}
+
+/// Install `__dataclass_fields__` as a class attribute on the (already
+/// initialized) static type, mirroring the pyo3 backend's `#[classattr]`.
+pub(crate) fn install_dataclass_fields(typ: &PyTypeRef, fields: &[&str], vm: &VirtualMachine) {
+    typ.set_attr(
+        vm.ctx.intern_str("__dataclass_fields__"),
+        dataclass_fields(fields, vm),
+    );
+}
+
+/// Build the `__dict__` of live field values that the pyo3 backend's
+/// `impl_dataclass_fields!` exposes per instance.
+pub(crate) fn dataclass_dict(
+    zelf: PyObjectRef,
+    fields: &'static [&'static str],
+    vm: &VirtualMachine,
+) -> PyResult<PyObjectRef> {
+    let d = vm.ctx.new_dict();
+    for name in fields {
+        d.set_item(*name, zelf.get_attr(*name, vm)?, vm)?;
+    }
+    Ok(d.into())
 }

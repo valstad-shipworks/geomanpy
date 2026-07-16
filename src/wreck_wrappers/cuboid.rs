@@ -131,20 +131,7 @@ mod pyo3_impl {
             self.0.to_string()
         }
         fn corners(&self) -> Vec<PyDVec3> {
-            let c = self.0.center;
-            let he = self.0.half_extents;
-            let ax = &self.0.axes;
-            let mut out = Vec::with_capacity(8);
-            for sx in [-1.0f32, 1.0] {
-                for sy in [-1.0f32, 1.0] {
-                    for sz in [-1.0f32, 1.0] {
-                        let local =
-                            ax[0] * (he[0] * sx) + ax[1] * (he[1] * sy) + ax[2] * (he[2] * sz);
-                        out.push(v3d(c + local));
-                    }
-                }
-            }
-            out
+            self.0.corners().into_iter().map(PyDVec3).collect()
         }
         #[staticmethod]
         fn from_center_size_orientation(
@@ -152,23 +139,11 @@ mod pyo3_impl {
             size: (f64, f64, f64),
             orientation: PyDMat3,
         ) -> Self {
-            let half = [
-                (size.0.abs() / 2.0) as f32,
-                (size.1.abs() / 2.0) as f32,
-                (size.2.abs() / 2.0) as f32,
-            ];
-            let m = orientation.0;
-            let axes = [
-                Vec3::new(m.x_axis.x as f32, m.x_axis.y as f32, m.x_axis.z as f32),
-                Vec3::new(m.y_axis.x as f32, m.y_axis.y as f32, m.y_axis.z as f32),
-                Vec3::new(m.z_axis.x as f32, m.z_axis.y as f32, m.z_axis.z as f32),
-            ];
-            Self(Cuboid {
-                center: dv3(center),
-                axes,
-                half_extents: half,
-                axis_aligned: false,
-            })
+            Self(Cuboid::from_center_size_orientation(
+                center.0,
+                size,
+                orientation.0,
+            ))
         }
     }
 }
@@ -185,7 +160,7 @@ mod rustpython_impl {
     use crate::wreck_wrappers::{PyConvexPolytope, PySphere};
     use glam::Vec3;
     use rustpython_vm::{
-        Py, PyObjectRef, PyPayload, PyResult, VirtualMachine,
+        Py, PyObjectRef, PyPayload, PyRef, PyResult, VirtualMachine,
         builtins::PyType,
         function::FuncArgs,
         pyclass,
@@ -203,10 +178,54 @@ mod rustpython_impl {
                         .map_err(|e| vm.new_value_error(e))?,
                 ));
             }
+            if args.args.len() > 3 {
+                return Err(vm.new_type_error(format!(
+                    "Cuboid() takes at most 3 positional arguments, got {}",
+                    args.args.len()
+                )));
+            }
+            let names = ["center", "axes", "half_extents"];
+            let mut values: [Option<PyObjectRef>; 3] = [None, None, None];
+            for (i, obj) in args.args.iter().enumerate() {
+                values[i] = Some(obj.clone());
+            }
+            for (name, obj) in args.kwargs.iter() {
+                let Some(idx) = names.iter().position(|n| *n == name.as_str()) else {
+                    return Err(vm.new_type_error(format!(
+                        "Cuboid() got an unexpected keyword argument '{name}'"
+                    )));
+                };
+                if values[idx].is_some() {
+                    return Err(vm.new_type_error(format!(
+                        "Cuboid() got multiple values for argument '{name}'"
+                    )));
+                }
+                values[idx] = Some(obj.clone());
+            }
+            let [Some(center), Some(axes), Some(he)] = values else {
+                return Err(vm.new_value_error(
+                    "Cuboid requires center, axes, half_extents arguments".to_owned(),
+                ));
+            };
+            let center = dv3(extract_vec3(&center, vm)?);
+            let axes: Vec<Vec<f64>> = axes.try_to_value(vm)?;
+            if axes.len() != 3 || axes.iter().any(|row| row.len() != 3) {
+                return Err(vm.new_type_error("axes must be a 3x3 sequence of floats".to_owned()));
+            }
+            let he: Vec<f64> = he.try_to_value(vm)?;
+            if he.len() != 3 {
+                return Err(
+                    vm.new_type_error("half_extents must be a sequence of 3 floats".to_owned())
+                );
+            }
             Ok(Self(Cuboid::new(
-                Vec3::ZERO,
-                [Vec3::X, Vec3::Y, Vec3::Z],
-                [0.0, 0.0, 0.0],
+                center,
+                [
+                    Vec3::new(axes[0][0] as f32, axes[0][1] as f32, axes[0][2] as f32),
+                    Vec3::new(axes[1][0] as f32, axes[1][1] as f32, axes[1][2] as f32),
+                    Vec3::new(axes[2][0] as f32, axes[2][1] as f32, axes[2][2] as f32),
+                ],
+                [he[0] as f32, he[1] as f32, he[2] as f32],
             )))
         }
     }
@@ -215,6 +234,11 @@ mod rustpython_impl {
             Ok(zelf.0.to_string())
         }
     }
+    impl PyCuboid {
+        pub(crate) const DATACLASS_FIELDS: &'static [&'static str] =
+            &["center", "axes", "half_extents"];
+    }
+
     #[pyclass(with(Constructor, Representable))]
     impl PyCuboid {
         #[pygetset]
@@ -222,13 +246,26 @@ mod rustpython_impl {
             v3d(self.0.center)
         }
         #[pygetset]
-        fn half_extents(&self) -> (f64, f64, f64) {
+        fn half_extents(&self, vm: &VirtualMachine) -> PyObjectRef {
             let he = self.0.half_extents;
-            (he[0] as f64, he[1] as f64, he[2] as f64)
+            vm.ctx
+                .new_list(vec![
+                    vm.ctx.new_float(he[0] as f64).into(),
+                    vm.ctx.new_float(he[1] as f64).into(),
+                    vm.ctx.new_float(he[2] as f64).into(),
+                ])
+                .into()
         }
         #[pygetset]
-        fn full_extents(&self) -> (f64, f64, f64) {
-            self.0.full_extents()
+        fn full_extents(&self, vm: &VirtualMachine) -> PyObjectRef {
+            let (x, y, z) = self.0.full_extents();
+            vm.ctx
+                .new_list(vec![
+                    vm.ctx.new_float(x).into(),
+                    vm.ctx.new_float(y).into(),
+                    vm.ctx.new_float(z).into(),
+                ])
+                .into()
         }
         #[pygetset]
         fn axis_aligned(&self) -> bool {
@@ -244,13 +281,22 @@ mod rustpython_impl {
             ))
         }
         #[pygetset]
-        fn axes(&self) -> ((f64, f64, f64), (f64, f64, f64), (f64, f64, f64)) {
-            let a = &self.0.axes;
-            (
-                (a[0].x as f64, a[0].y as f64, a[0].z as f64),
-                (a[1].x as f64, a[1].y as f64, a[1].z as f64),
-                (a[2].x as f64, a[2].y as f64, a[2].z as f64),
-            )
+        fn axes(&self, vm: &VirtualMachine) -> PyObjectRef {
+            let items: Vec<PyObjectRef> = self
+                .0
+                .axes
+                .iter()
+                .map(|a| {
+                    vm.ctx
+                        .new_list(vec![
+                            vm.ctx.new_float(a.x as f64).into(),
+                            vm.ctx.new_float(a.y as f64).into(),
+                            vm.ctx.new_float(a.z as f64).into(),
+                        ])
+                        .into()
+                })
+                .collect();
+            vm.ctx.new_list(items).into()
         }
         #[pymethod]
         fn contains_point(&self, point: PyObjectRef, vm: &VirtualMachine) -> PyResult<bool> {
@@ -361,8 +407,8 @@ mod rustpython_impl {
             crate::rp_serde::getnewargs_ex(&self.0, vm)
         }
         #[pygetset]
-        fn __dataclass_fields__(&self, vm: &VirtualMachine) -> PyObjectRef {
-            crate::rp_serde::dataclass_fields(&["center", "axes", "half_extents"], vm)
+        fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::dataclass_dict(zelf.into(), Self::DATACLASS_FIELDS, vm)
         }
     }
 }

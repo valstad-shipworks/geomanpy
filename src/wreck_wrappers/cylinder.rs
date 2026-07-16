@@ -29,20 +29,20 @@ mod pyo3_impl {
     #[pymethods]
     impl PyCylinder {
         #[new]
-        #[pyo3(signature = (p1=None, p2=None, radius=0.0, *, __pickle_state__=None))]
+        #[pyo3(signature = (p1=None, p2=None, radius=None, *, __pickle_state__=None))]
         fn new(
             p1: Option<PyDVec3>,
             p2: Option<PyDVec3>,
-            radius: f64,
+            radius: Option<f64>,
             __pickle_state__: Option<Vec<u8>>,
         ) -> PyResult<Self> {
             if let Some(state) = __pickle_state__ {
                 return Ok(Self(pickle_decode::<Cylinder>(&state)?));
             }
-            match (p1, p2) {
-                (Some(a), Some(b)) => Ok(Self(Cylinder::new(dv3(a), dv3(b), radius as f32))),
+            match (p1, p2, radius) {
+                (Some(a), Some(b), Some(r)) => Ok(Self(Cylinder::new(dv3(a), dv3(b), r as f32))),
                 _ => Err(pyo3::exceptions::PyValueError::new_err(
-                    "Cylinder requires p1, p2 arguments",
+                    "Cylinder requires p1, p2, radius arguments",
                 )),
             }
         }
@@ -74,8 +74,8 @@ mod pyo3_impl {
             Self(Cylinder::from_center_orientation(
                 center.0,
                 orientation.0,
-                length,
                 radius,
+                length,
             ))
         }
         fn center_orientation(&self) -> (PyDVec3, PyDMat3) {
@@ -136,7 +136,7 @@ mod rustpython_impl {
     };
     use crate::wreck_wrappers::{PyCapsule, PyConvexPolytope, PyCuboid, PySphere};
     use rustpython_vm::{
-        Py, PyObjectRef, PyPayload, PyResult, VirtualMachine,
+        Py, PyObjectRef, PyPayload, PyRef, PyResult, VirtualMachine,
         builtins::PyType,
         function::FuncArgs,
         pyclass,
@@ -147,21 +147,46 @@ mod rustpython_impl {
 
     impl Constructor for PyCylinder {
         type Args = FuncArgs;
-        fn py_new(_cls: &Py<PyType>, args: FuncArgs, vm: &VirtualMachine) -> PyResult<Self> {
+        fn py_new(_cls: &Py<PyType>, mut args: FuncArgs, vm: &VirtualMachine) -> PyResult<Self> {
             if let Some(state) = crate::rp_serde::take_pickle_state(&args, vm)? {
                 return Ok(Self(
                     crate::pickle::pickle_decode_raw::<Cylinder>(&state)
                         .map_err(|e| vm.new_value_error(e))?,
                 ));
             }
-            if args.args.len() != 3 {
-                return Err(
-                    vm.new_type_error("Cylinder(p1, p2, radius) requires 3 args".to_owned())
-                );
+            if args.args.len() > 3 {
+                return Err(vm.new_type_error(format!(
+                    "Cylinder() takes 3 positional arguments but {} were given",
+                    args.args.len()
+                )));
             }
-            let p1 = dv3(extract_vec3(&args.args[0], vm)?);
-            let p2 = dv3(extract_vec3(&args.args[1], vm)?);
-            let r: f64 = args.args[2].try_float(vm)?.to_f64();
+            let mut values: [Option<PyObjectRef>; 3] = [None, None, None];
+            for (slot, val) in values.iter_mut().zip(args.args.drain(..)) {
+                *slot = Some(val);
+            }
+            for (slot, name) in values.iter_mut().zip(["p1", "p2", "radius"]) {
+                if let Some(val) = args.kwargs.swap_remove(name) {
+                    if slot.is_some() {
+                        return Err(vm.new_type_error(format!(
+                            "Cylinder() got multiple values for argument '{name}'"
+                        )));
+                    }
+                    *slot = Some(val);
+                }
+            }
+            if let Some(name) = args.kwargs.keys().next() {
+                return Err(vm.new_type_error(format!(
+                    "Cylinder() got an unexpected keyword argument '{name}'"
+                )));
+            }
+            let [Some(p1), Some(p2), Some(radius)] = values else {
+                return Err(
+                    vm.new_value_error("Cylinder requires p1, p2, radius arguments".to_owned())
+                );
+            };
+            let p1 = dv3(extract_vec3(&p1, vm)?);
+            let p2 = dv3(extract_vec3(&p2, vm)?);
+            let r = radius.try_float(vm)?.to_f64();
             Ok(Self(Cylinder::new(p1, p2, r as f32)))
         }
     }
@@ -170,6 +195,10 @@ mod rustpython_impl {
             Ok(zelf.0.to_string())
         }
     }
+    impl PyCylinder {
+        pub(crate) const DATACLASS_FIELDS: &'static [&'static str] = &["p1", "p2", "radius"];
+    }
+
     #[pyclass(with(Constructor, Representable))]
     impl PyCylinder {
         #[pygetset]
@@ -212,7 +241,7 @@ mod rustpython_impl {
             let c = extract_vec3(&center, vm)?;
             let o = extract_mat3(&orientation, vm)?;
             Ok(Self(Cylinder::from_center_orientation(
-                c, o, length, radius,
+                c, o, radius, length,
             )))
         }
         #[pymethod]
@@ -309,8 +338,8 @@ mod rustpython_impl {
             crate::rp_serde::getnewargs_ex(&self.0, vm)
         }
         #[pygetset]
-        fn __dataclass_fields__(&self, vm: &VirtualMachine) -> PyObjectRef {
-            crate::rp_serde::dataclass_fields(&["p1", "p2", "radius"], vm)
+        fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::dataclass_dict(zelf.into(), Self::DATACLASS_FIELDS, vm)
         }
     }
 }

@@ -40,6 +40,7 @@ mod pyo3_impl {
     use crate::pickle::pickle_decode;
     use crate::{impl_dataclass_fields, impl_getnewargs_ex};
     use numpy::{AllowTypeChange, PyArray1, PyArrayLike1};
+    use pyo3::IntoPyObjectExt;
     use pyo3::exceptions::PyIndexError;
     use pyo3::prelude::*;
 
@@ -434,91 +435,86 @@ mod pyo3_impl {
             *self
         }
 
-        fn __add__(&self, other: &Bound<'_, PyAny>) -> PyResult<Self> {
+        fn __add__(&self, other: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
             if let Ok(v) = other.extract::<Self>() {
-                Ok(Self(self.0 + v.0))
+                Self(self.0 + v.0).into_py_any(other.py())
             } else if let Ok(s) = other.extract::<f64>() {
-                Ok(Self(self.0 + s))
+                Self(self.0 + s).into_py_any(other.py())
             } else {
-                Err(pyo3::exceptions::PyTypeError::new_err(
-                    "unsupported operand type for +",
-                ))
+                Ok(other.py().NotImplemented())
             }
         }
-        fn __radd__(&self, other: &Bound<'_, PyAny>) -> PyResult<Self> {
+        fn __radd__(&self, other: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
             self.__add__(other)
         }
 
-        fn __sub__(&self, other: &Bound<'_, PyAny>) -> PyResult<Self> {
+        fn __sub__(&self, other: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
             if let Ok(v) = other.extract::<Self>() {
-                Ok(Self(self.0 - v.0))
+                Self(self.0 - v.0).into_py_any(other.py())
             } else if let Ok(s) = other.extract::<f64>() {
-                Ok(Self(self.0 - s))
+                Self(self.0 - s).into_py_any(other.py())
             } else {
-                Err(pyo3::exceptions::PyTypeError::new_err(
-                    "unsupported operand type for -",
-                ))
+                Ok(other.py().NotImplemented())
             }
         }
-        fn __rsub__(&self, other: &Bound<'_, PyAny>) -> PyResult<Self> {
+        fn __rsub__(&self, other: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
             if let Ok(v) = other.extract::<Self>() {
-                Ok(Self(v.0 - self.0))
+                Self(v.0 - self.0).into_py_any(other.py())
             } else if let Ok(s) = other.extract::<f64>() {
-                Ok(Self(DVec4::splat(s) - self.0))
+                Self(DVec4::splat(s) - self.0).into_py_any(other.py())
             } else {
-                Err(pyo3::exceptions::PyTypeError::new_err(
-                    "unsupported operand type for -",
-                ))
+                Ok(other.py().NotImplemented())
             }
         }
 
-        fn __mul__(&self, other: &Bound<'_, PyAny>) -> PyResult<Self> {
+        fn __mul__(&self, other: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
             if let Ok(v) = other.extract::<Self>() {
-                Ok(Self(self.0 * v.0))
+                Self(self.0 * v.0).into_py_any(other.py())
             } else if let Ok(s) = other.extract::<f64>() {
-                Ok(Self(self.0 * s))
+                Self(self.0 * s).into_py_any(other.py())
             } else {
-                Err(pyo3::exceptions::PyTypeError::new_err(
-                    "unsupported operand type for *",
-                ))
+                Ok(other.py().NotImplemented())
             }
         }
-        fn __rmul__(&self, other: &Bound<'_, PyAny>) -> PyResult<Self> {
+        fn __rmul__(&self, other: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
             self.__mul__(other)
         }
 
-        fn __truediv__(&self, other: &Bound<'_, PyAny>) -> PyResult<Self> {
+        fn __truediv__(&self, other: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
             if let Ok(v) = other.extract::<Self>() {
-                Ok(Self(self.0 / v.0))
+                Self(self.0 / v.0).into_py_any(other.py())
             } else if let Ok(s) = other.extract::<f64>() {
-                Ok(Self(self.0 / s))
+                Self(self.0 / s).into_py_any(other.py())
             } else {
-                Err(pyo3::exceptions::PyTypeError::new_err(
-                    "unsupported operand type for /",
-                ))
+                Ok(other.py().NotImplemented())
             }
         }
-        fn __rtruediv__(&self, other: &Bound<'_, PyAny>) -> PyResult<Self> {
+        fn __rtruediv__(&self, other: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
             if let Ok(v) = other.extract::<Self>() {
-                Ok(Self(v.0 / self.0))
+                Self(v.0 / self.0).into_py_any(other.py())
             } else if let Ok(s) = other.extract::<f64>() {
-                Ok(Self(DVec4::splat(s) / self.0))
+                Self(DVec4::splat(s) / self.0).into_py_any(other.py())
             } else {
-                Err(pyo3::exceptions::PyTypeError::new_err(
-                    "unsupported operand type for /",
-                ))
+                Ok(other.py().NotImplemented())
             }
         }
 
-        fn __mod__(&self, other: &Bound<'_, PyAny>) -> PyResult<Self> {
+        fn __mod__(&self, other: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
             if let Ok(v) = other.extract::<Self>() {
-                Ok(Self(self.0 % v.0))
+                Self(self.0 % v.0).into_py_any(other.py())
             } else if let Ok(s) = other.extract::<f64>() {
-                Ok(Self(self.0 % s))
+                Self(self.0 % s).into_py_any(other.py())
             } else {
-                Err(pyo3::exceptions::PyTypeError::new_err(
-                    "unsupported operand type for %",
-                ))
+                Ok(other.py().NotImplemented())
+            }
+        }
+        fn __rmod__(&self, other: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+            if let Ok(v) = other.extract::<Self>() {
+                Self(v.0 % self.0).into_py_any(other.py())
+            } else if let Ok(s) = other.extract::<f64>() {
+                Self(DVec4::splat(s) % self.0).into_py_any(other.py())
+            } else {
+                Ok(other.py().NotImplemented())
             }
         }
 
@@ -530,6 +526,7 @@ mod pyo3_impl {
             use std::hash::{Hash, Hasher};
             let mut h = std::collections::hash_map::DefaultHasher::new();
             for c in self.0.to_array() {
+                let c = if c == 0.0 { 0.0 } else { c };
                 c.to_bits().hash(&mut h);
             }
             h.finish()
@@ -550,7 +547,7 @@ mod rustpython_impl {
     use crate::glam_wrappers::PyDVec3;
     use crate::glam_wrappers::impl_rp_vec_ops;
     use rustpython_vm::{
-        Py, PyObjectRef, PyPayload, PyResult, VirtualMachine,
+        Py, PyObjectRef, PyPayload, PyRef, PyResult, VirtualMachine,
         builtins::PyType,
         function::FuncArgs,
         pyclass,
@@ -582,21 +579,31 @@ mod rustpython_impl {
                         .map_err(|e| vm.new_value_error(e))?,
                 ));
             }
-            let (x, y, z, w) = match args.args.len() {
-                0 => (0.0, 0.0, 0.0, 0.0),
-                4 => (
-                    args.args[0].try_float(vm)?.to_f64(),
-                    args.args[1].try_float(vm)?.to_f64(),
-                    args.args[2].try_float(vm)?.to_f64(),
-                    args.args[3].try_float(vm)?.to_f64(),
-                ),
-                n => {
+            let names = ["x", "y", "z", "w"];
+            let npos = args.args.len();
+            if npos > names.len() {
+                return Err(vm.new_type_error(format!(
+                    "Vec4() takes at most 4 positional arguments, got {npos}"
+                )));
+            }
+            let mut vals = [0.0f64; 4];
+            for (i, obj) in args.args.iter().enumerate() {
+                vals[i] = obj.try_float(vm)?.to_f64();
+            }
+            for (name, obj) in &args.kwargs {
+                let Some(i) = names.iter().position(|n| *n == name.as_str()) else {
                     return Err(vm.new_type_error(format!(
-                        "Vec4() takes 0 or 4 positional arguments, got {n}"
+                        "Vec4() got an unexpected keyword argument '{name}'"
+                    )));
+                };
+                if i < npos {
+                    return Err(vm.new_type_error(format!(
+                        "Vec4() got multiple values for argument '{name}'"
                     )));
                 }
-            };
-            Ok(PyDVec4(DVec4::new(x, y, z, w)))
+                vals[i] = obj.try_float(vm)?.to_f64();
+            }
+            Ok(PyDVec4(DVec4::new(vals[0], vals[1], vals[2], vals[3])))
         }
     }
 
@@ -606,6 +613,10 @@ mod rustpython_impl {
             let v = zelf.0;
             Ok(format!("Vec4({}, {}, {}, {})", v.x, v.y, v.z, v.w))
         }
+    }
+
+    impl PyDVec4 {
+        pub(crate) const DATACLASS_FIELDS: &'static [&'static str] = &["x", "y", "z", "w"];
     }
 
     #[pyclass(with(Constructor, Representable, AsNumber, Comparable, Hashable, AsMapping))]
@@ -674,7 +685,7 @@ mod rustpython_impl {
         #[pymethod]
         fn to_array(&self, vm: &VirtualMachine) -> PyObjectRef {
             vm.ctx
-                .new_tuple(vec![
+                .new_list(vec![
                     vm.ctx.new_float(self.0.x).into(),
                     vm.ctx.new_float(self.0.y).into(),
                     vm.ctx.new_float(self.0.z).into(),
@@ -956,8 +967,8 @@ mod rustpython_impl {
         }
 
         #[pygetset]
-        fn __dataclass_fields__(&self, vm: &VirtualMachine) -> PyObjectRef {
-            crate::rp_serde::dataclass_fields(&["x", "y", "z", "w"], vm)
+        fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::dataclass_dict(zelf.into(), Self::DATACLASS_FIELDS, vm)
         }
     }
 
@@ -981,7 +992,7 @@ mod rustpython_impl {
         set("NAN", DVec4::NAN);
     }
 
-    impl_rp_vec_ops!(PyDVec4, DVec4, 4);
+    impl_rp_vec_ops!(PyDVec4, DVec4, 4, extract);
 }
 
 #[cfg(feature = "rustpython-backend")]

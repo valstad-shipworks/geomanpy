@@ -31,14 +31,22 @@ use pyo3::prelude::*;
 
 #[cfg_attr(
     feature = "pyo3-backend",
-    pyo3::pyclass(module = "geomanpy", eq, eq_int, from_py_object, name = "EulerRot")
+    pyo3::pyclass(
+        module = "geomanpy",
+        eq,
+        eq_int,
+        hash,
+        frozen,
+        skip_from_py_object,
+        name = "EulerRot"
+    )
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
     rustpython_vm::pyclass(module = "geomanpy", name = "EulerRot")
 )]
 #[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PyEulerRot {
     ZYX,
     ZXY,
@@ -130,9 +138,108 @@ impl From<EulerRot> for PyEulerRot {
     }
 }
 
+#[cfg(feature = "pyo3-backend")]
+const EULER_VARIANTS: [(&str, PyEulerRot); 24] = [
+    ("ZYX", PyEulerRot::ZYX),
+    ("ZXY", PyEulerRot::ZXY),
+    ("YXZ", PyEulerRot::YXZ),
+    ("YZX", PyEulerRot::YZX),
+    ("XYZ", PyEulerRot::XYZ),
+    ("XZY", PyEulerRot::XZY),
+    ("ZYZ", PyEulerRot::ZYZ),
+    ("ZXZ", PyEulerRot::ZXZ),
+    ("YXY", PyEulerRot::YXY),
+    ("YZY", PyEulerRot::YZY),
+    ("XYX", PyEulerRot::XYX),
+    ("XZX", PyEulerRot::XZX),
+    ("ZYXEx", PyEulerRot::ZYXEx),
+    ("ZXYEx", PyEulerRot::ZXYEx),
+    ("YXZEx", PyEulerRot::YXZEx),
+    ("YZXEx", PyEulerRot::YZXEx),
+    ("XYZEx", PyEulerRot::XYZEx),
+    ("XZYEx", PyEulerRot::XZYEx),
+    ("ZYZEx", PyEulerRot::ZYZEx),
+    ("ZXZEx", PyEulerRot::ZXZEx),
+    ("YXYEx", PyEulerRot::YXYEx),
+    ("YZYEx", PyEulerRot::YZYEx),
+    ("XYXEx", PyEulerRot::XYXEx),
+    ("XZXEx", PyEulerRot::XZXEx),
+];
+
+#[cfg(feature = "pyo3-backend")]
+impl<'a, 'py> pyo3::FromPyObject<'a, 'py> for PyEulerRot {
+    type Error = pyo3::PyErr;
+    fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> PyResult<Self> {
+        if let Ok(v) = ob.cast_exact::<Self>() {
+            return Ok(*v.get());
+        }
+        let py = ob.py();
+        let class_name = ob.get_type().name()?;
+        if class_name != "EulerRot" {
+            return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+                "expected an EulerRot, got {class_name}"
+            )));
+        }
+        if let Ok(i) = ob
+            .call_method0(pyo3::intern!(py, "__int__"))
+            .and_then(|v| v.extract::<usize>())
+            && let Some(&(_, variant)) = EULER_VARIANTS.get(i)
+        {
+            return Ok(variant);
+        }
+        let name: String = ob.getattr(pyo3::intern!(py, "name"))?.extract()?;
+        EULER_VARIANTS
+            .iter()
+            .find(|(n, _)| *n == name)
+            .map(|&(_, v)| v)
+            .ok_or_else(|| PyValueError::new_err(format!("unknown EulerRot variant '{name}'")))
+    }
+}
+
 #[cfg(feature = "rustpython-backend")]
-#[rustpython_vm::pyclass]
-impl PyEulerRot {}
+mod rustpython_euler_impl {
+    use super::PyEulerRot;
+    use rustpython_vm::{
+        Py, PyObject, PyResult, VirtualMachine,
+        builtins::PyInt,
+        function::PyComparisonValue,
+        types::{Comparable, Hashable, PyComparisonOp},
+    };
+
+    #[rustpython_vm::pyclass(with(Comparable, Hashable))]
+    impl PyEulerRot {}
+
+    impl Comparable for PyEulerRot {
+        fn cmp(
+            zelf: &Py<Self>,
+            other: &PyObject,
+            op: PyComparisonOp,
+            vm: &VirtualMachine,
+        ) -> PyResult<PyComparisonValue> {
+            op.eq_only(|| {
+                if let Some(o) = other.downcast_ref::<Self>() {
+                    return Ok(PyComparisonValue::Implemented(**zelf == **o));
+                }
+                if let Some(i) = other.downcast_ref::<PyInt>() {
+                    let eq = i
+                        .try_to_primitive::<isize>(vm)
+                        .is_ok_and(|v| v == **zelf as isize);
+                    return Ok(PyComparisonValue::Implemented(eq));
+                }
+                Ok(PyComparisonValue::NotImplemented)
+            })
+        }
+    }
+
+    impl Hashable for PyEulerRot {
+        fn hash(
+            zelf: &Py<Self>,
+            _vm: &VirtualMachine,
+        ) -> PyResult<rustpython_vm::common::hash::PyHash> {
+            Ok(**zelf as rustpython_vm::common::hash::PyHash)
+        }
+    }
+}
 
 /// Expose the rotation-order variants as class attributes (`EulerRot.ZYX`, …).
 /// RustPython has no enum-pyclass macro, so they're installed onto the static
@@ -445,10 +552,12 @@ pub(crate) mod rp_ops {
         fn inner(&self) -> Self::Inner;
         fn wrap(i: Self::Inner) -> Self;
         fn splat(s: f64) -> Self::Inner;
+        fn extract(obj: &PyObject, vm: &VirtualMachine) -> Option<Self::Inner>;
     }
 
-    /// Number-protocol binary slot: coerce both operands (wrapper or scalar)
-    /// and apply `op`, or return `NotImplemented`.
+    /// Number-protocol binary slot: coerce both operands (wrapper, scalar,
+    /// fixed-length sequence, or component-attribute duck) and apply `op`,
+    /// or return `NotImplemented`.
     pub fn binop<P: RpVec>(
         a: &PyObject,
         b: &PyObject,
@@ -457,10 +566,12 @@ pub(crate) mod rp_ops {
     ) -> PyResult<PyObjectRef> {
         let coerce = |o: &PyObject| -> Option<P::Inner> {
             if let Some(v) = o.downcast_ref::<P>() {
-                Some(v.inner())
-            } else {
-                f64::try_from_object(vm, o.to_owned()).ok().map(P::splat)
+                return Some(v.inner());
             }
+            if let Ok(s) = f64::try_from_object(vm, o.to_owned()) {
+                return Some(P::splat(s));
+            }
+            P::extract(o, vm)
         };
         match (coerce(a), coerce(b)) {
             (Some(x), Some(y)) => Ok(P::wrap(op(x, y)).into_pyobject(vm)),
@@ -484,7 +595,7 @@ pub(crate) mod rp_ops {
 /// inner type exposes `splat`, `to_array`, and the arithmetic operators.
 #[cfg(feature = "rustpython-backend")]
 macro_rules! impl_rp_vec_ops {
-    ($py:ty, $inner:ty, $n:literal) => {
+    ($py:ty, $inner:ty, $n:literal, $extract:path) => {
         impl $crate::glam_wrappers::rp_ops::RpVec for $py {
             type Inner = $inner;
             #[inline]
@@ -498,6 +609,13 @@ macro_rules! impl_rp_vec_ops {
             #[inline]
             fn splat(s: f64) -> $inner {
                 <$inner>::splat(s)
+            }
+            #[inline]
+            fn extract(
+                obj: &rustpython_vm::PyObject,
+                vm: &rustpython_vm::VirtualMachine,
+            ) -> Option<$inner> {
+                $extract(&obj.to_owned(), vm).ok()
             }
         }
 
@@ -537,13 +655,15 @@ macro_rules! impl_rp_vec_ops {
                 zelf: &rustpython_vm::Py<Self>,
                 other: &rustpython_vm::PyObject,
                 op: rustpython_vm::types::PyComparisonOp,
-                _vm: &rustpython_vm::VirtualMachine,
+                vm: &rustpython_vm::VirtualMachine,
             ) -> rustpython_vm::PyResult<rustpython_vm::function::PyComparisonValue> {
-                op.eq_only(|| match other.downcast_ref::<$py>() {
-                    Some(o) => Ok(rustpython_vm::function::PyComparisonValue::Implemented(
-                        zelf.0 == o.0,
-                    )),
-                    None => Ok(rustpython_vm::function::PyComparisonValue::NotImplemented),
+                op.eq_only(|| {
+                    match <$py as $crate::glam_wrappers::rp_ops::RpVec>::extract(other, vm) {
+                        Some(o) => Ok(rustpython_vm::function::PyComparisonValue::Implemented(
+                            zelf.0 == o,
+                        )),
+                        None => Ok(rustpython_vm::function::PyComparisonValue::NotImplemented),
+                    }
                 })
             }
         }
@@ -556,6 +676,7 @@ macro_rules! impl_rp_vec_ops {
                 use std::hash::{Hash, Hasher};
                 let mut h = std::collections::hash_map::DefaultHasher::new();
                 for c in zelf.0.to_array() {
+                    let c = if c == 0.0 { 0.0 } else { c };
                     c.to_bits().hash(&mut h);
                 }
                 Ok(h.finish() as rustpython_vm::common::hash::PyHash)
