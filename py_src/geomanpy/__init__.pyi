@@ -1,7 +1,16 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Any, ClassVar, Iterable, Protocol, Self, final, overload, runtime_checkable  # type: ignore
+from typing import (
+    Any,
+    ClassVar,
+    Iterable,
+    Protocol,
+    Self,
+    final,
+    overload,
+    runtime_checkable,
+)  # type: ignore
 
 import numpy as np
 import numpy.typing as npt

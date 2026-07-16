@@ -188,7 +188,9 @@ def check_curve_common(curve):
     start, end = curve.endpoints()
     assert _vapprox(start, curve.point(0.0), 1e-6), f"{name}: endpoints[0] != point(0)"
     assert _vapprox(end, curve.point(1.0), 1e-6), f"{name}: endpoints[1] != point(1)"
-    assert _vapprox(curve.point_clamped(-2.0), start, 1e-6), f"{name}: point_clamped low"
+    assert _vapprox(curve.point_clamped(-2.0), start, 1e-6), (
+        f"{name}: point_clamped low"
+    )
     assert _vapprox(curve.point_clamped(3.0), end, 1e-6), f"{name}: point_clamped high"
 
     v = curve.velocity(0.3)

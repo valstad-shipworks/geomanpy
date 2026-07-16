@@ -17,9 +17,7 @@ def expect(exc, fn, *args, **kwargs):
     except exc:
         return
     except Exception as e:
-        raise AssertionError(
-            f"expected {names}, got {type(e).__name__}: {e}"
-        ) from e
+        raise AssertionError(f"expected {names}, got {type(e).__name__}: {e}") from e
     raise AssertionError(f"expected {names}, but no exception was raised")
 
 
@@ -297,9 +295,12 @@ def test_cuboid_api():
         [1.0, 2.0, 3.0],
     )
     assert ident.abs_diff_eq(direct, 0.0) is True
-    assert ident.aabb().abs_diff_eq(
-        Cuboid.from_aabb([0.0, 0.0, 0.0], [2.0, 4.0, 6.0]), 0.0
-    ) is True
+    assert (
+        ident.aabb().abs_diff_eq(
+            Cuboid.from_aabb([0.0, 0.0, 0.0], [2.0, 4.0, 6.0]), 0.0
+        )
+        is True
+    )
     assert ident.obb().abs_diff_eq(ident, 0.0) is True
     assert direct.corners() == ident.corners()
 
@@ -380,12 +381,14 @@ def test_line_ray_segment_api():
     assert_vec(ln.origin, (1.0, 0.0, 0.0), msg="Line origin")
     assert_vec(ln.dir, (2.0, 0.0, 0.0), msg="Line dir = b - a, unnormalized")
 
-    assert Line([0.0, 0.0, 5.0], [1.0, 0.0, 0.0]).collides(
-        Sphere([0.0, 0.0, 0.0], 1.0)
-    ) is False
-    assert Line([0.0, 0.0, 0.5], [1.0, 0.0, 0.0]).collides(
-        Sphere([0.0, 0.0, 0.0], 1.0)
-    ) is True
+    assert (
+        Line([0.0, 0.0, 5.0], [1.0, 0.0, 0.0]).collides(Sphere([0.0, 0.0, 0.0], 1.0))
+        is False
+    )
+    assert (
+        Line([0.0, 0.0, 0.5], [1.0, 0.0, 0.0]).collides(Sphere([0.0, 0.0, 0.0], 1.0))
+        is True
+    )
     parts = Line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]).stretch([2.0, 0.0, 0.0])
     assert len(parts) == 1 and isinstance(parts[0], Line)
     parts = Line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]).stretch([0.0, 2.0, 0.0])
@@ -395,9 +398,10 @@ def test_line_ray_segment_api():
     assert_vec(ray.origin, (2.0, 0.0, 0.0), msg="Ray origin")
     assert_vec(ray.dir, (1.0, 0.0, 0.0), msg="Ray dir")
     assert ray.collides(Sphere([0.0, 0.0, 0.0], 1.0)) is False
-    assert Ray([2.0, 0.0, 0.0], [-1.0, 0.0, 0.0]).collides(
-        Sphere([0.0, 0.0, 0.0], 1.0)
-    ) is True
+    assert (
+        Ray([2.0, 0.0, 0.0], [-1.0, 0.0, 0.0]).collides(Sphere([0.0, 0.0, 0.0], 1.0))
+        is True
+    )
 
     seg = LineSegment([-1.0, 0.0, 0.0], [1.0, 0.0, 0.0])
     assert_vec(seg.p1, (-1.0, 0.0, 0.0), msg="LineSegment p1")

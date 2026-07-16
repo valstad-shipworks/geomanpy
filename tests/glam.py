@@ -200,11 +200,11 @@ def check_vec_constructor_forms():
             assert veq(cls(*vals), expected)
         full = [float(i + 1) for i in range(n)]
         kw = {ax: val for ax, val in zip(axes, full)}
-        assert cls(**kw) == cls(*full), f"{cls.__name__} keyword ctor must match positional"
-        assert veq(cls(y=2.0), [0.0, 2.0] + [0.0] * (n - 2))
-        assert cls(1.0, **{axes[-1]: 9.0}) == cls(
-            *([1.0] + [0.0] * (n - 2) + [9.0])
+        assert cls(**kw) == cls(*full), (
+            f"{cls.__name__} keyword ctor must match positional"
         )
+        assert veq(cls(y=2.0), [0.0, 2.0] + [0.0] * (n - 2))
+        assert cls(1.0, **{axes[-1]: 9.0}) == cls(*([1.0] + [0.0] * (n - 2) + [9.0]))
         assert_raises(TypeError, cls, *([1.0] * (n + 1)))
         assert_raises(TypeError, cls, no_such_arg=1.0)
         assert_raises(TypeError, cls, 1.0, x=2.0)
@@ -340,11 +340,11 @@ def check_vec_common_methods():
         assert veq(v.clamp_length_min(1.0), a)
 
         signs = [-1.0, 1.0, -2.0, 3.0][:n]
-        assert veq(vc.copysign(cls(*signs)), [math.copysign(x, s) for x, s in zip(c, signs)])
-        assert veq(vc.powf(2.0), [x * x for x in c], 1e-9)
         assert veq(
-            vc.mul_add(vb, v), [x * y + z for x, y, z in zip(c, b, a)]
+            vc.copysign(cls(*signs)), [math.copysign(x, s) for x, s in zip(c, signs)]
         )
+        assert veq(vc.powf(2.0), [x * x for x in c], 1e-9)
+        assert veq(vc.mul_add(vb, v), [x * y + z for x, y, z in zip(c, b, a)])
 
         s, co = vc.sin_cos()
         assert veq(s, [math.sin(x) for x in c], 1e-12)
@@ -657,19 +657,25 @@ def check_quat_full():
     )
 
     assert Quat.from_xyzw(1, 2, 3, 4).conjugate() == Quat.from_xyzw(-1, -2, -3, 4)
-    assert Quat.from_rotation_z(0.6).inverse().abs_diff_eq(
-        Quat.from_rotation_z(-0.6), 1e-12
+    assert (
+        Quat.from_rotation_z(0.6)
+        .inverse()
+        .abs_diff_eq(Quat.from_rotation_z(-0.6), 1e-12)
     )
     assert approx(Quat.from_xyzw(1, 2, 3, 4).dot(Quat.from_xyzw(5, 6, 7, 8)), 70.0)
     assert approx(Quat.from_xyzw(1, 2, 3, 4).length(), math.sqrt(30.0))
     assert approx(Quat.from_xyzw(1, 2, 3, 4).length_squared(), 30.0)
     assert approx(Quat.from_xyzw(1, 2, 3, 4).length_recip(), 1.0 / math.sqrt(30.0))
-    assert Quat.from_xyzw(0, 0, 3, 4).normalize().abs_diff_eq(
-        Quat.from_xyzw(0, 0, 0.6, 0.8), 1e-12
+    assert (
+        Quat.from_xyzw(0, 0, 3, 4)
+        .normalize()
+        .abs_diff_eq(Quat.from_xyzw(0, 0, 0.6, 0.8), 1e-12)
     )
 
-    assert Quat.from_rotation_z(0.3).mul_quat(Quat.from_rotation_z(0.4)).abs_diff_eq(
-        Quat.from_rotation_z(0.7), 1e-12
+    assert (
+        Quat.from_rotation_z(0.3)
+        .mul_quat(Quat.from_rotation_z(0.4))
+        .abs_diff_eq(Quat.from_rotation_z(0.7), 1e-12)
     )
     assert Quat.IDENTITY.slerp(qz90, 0.5).abs_diff_eq(
         Quat.from_rotation_z(math.pi / 4), 1e-9
@@ -753,23 +759,33 @@ def check_mat3_full():
     assert veq(m.mul_transpose_vec3(Vec3(1, 1, 1)), [6, 15, 25])
 
     assert Mat3.from_diagonal(Vec3(2, 3, 4)).mul_vec3(Vec3(1, 1, 1)) == Vec3(2, 3, 4)
-    assert Mat3.from_quat(Quat.from_rotation_z(math.pi / 2)).mul_vec3(
-        Vec3(1, 0, 0)
-    ).abs_diff_eq(Vec3(0, 1, 0), 1e-9)
-    assert Mat3.from_axis_angle(Vec3(0, 0, 1), math.pi / 2).mul_vec3(
-        Vec3(1, 0, 0)
-    ).abs_diff_eq(Vec3(0, 1, 0), 1e-9)
+    assert (
+        Mat3.from_quat(Quat.from_rotation_z(math.pi / 2))
+        .mul_vec3(Vec3(1, 0, 0))
+        .abs_diff_eq(Vec3(0, 1, 0), 1e-9)
+    )
+    assert (
+        Mat3.from_axis_angle(Vec3(0, 0, 1), math.pi / 2)
+        .mul_vec3(Vec3(1, 0, 0))
+        .abs_diff_eq(Vec3(0, 1, 0), 1e-9)
+    )
     assert Mat3.from_scaled_axis(Vec3(0, 0, math.pi / 2)).abs_diff_eq(
         Mat3.from_rotation_z(math.pi / 2), 1e-12
     )
-    assert Mat3.from_rotation_x(math.pi / 2).mul_vec3(Vec3(0, 1, 0)).abs_diff_eq(
-        Vec3(0, 0, 1), 1e-9
+    assert (
+        Mat3.from_rotation_x(math.pi / 2)
+        .mul_vec3(Vec3(0, 1, 0))
+        .abs_diff_eq(Vec3(0, 0, 1), 1e-9)
     )
-    assert Mat3.from_rotation_y(math.pi / 2).mul_vec3(Vec3(0, 0, 1)).abs_diff_eq(
-        Vec3(1, 0, 0), 1e-9
+    assert (
+        Mat3.from_rotation_y(math.pi / 2)
+        .mul_vec3(Vec3(0, 0, 1))
+        .abs_diff_eq(Vec3(1, 0, 0), 1e-9)
     )
-    assert Mat3.from_rotation_z(math.pi / 2).mul_vec3(Vec3(1, 0, 0)).abs_diff_eq(
-        Vec3(0, 1, 0), 1e-9
+    assert (
+        Mat3.from_rotation_z(math.pi / 2)
+        .mul_vec3(Vec3(1, 0, 0))
+        .abs_diff_eq(Vec3(0, 1, 0), 1e-9)
     )
 
     a, b, c = 0.1, 0.2, 0.3
@@ -892,8 +908,10 @@ def check_mat4_full():
     t = Vec3(10, 20, 30)
     rt = Mat4.from_rotation_translation(q, t)
     assert rt.transform_point3(Vec3(1, 0, 0)).abs_diff_eq(Vec3(10, 21, 30), 1e-9)
-    assert Mat4.from_quat(q).transform_vector3(Vec3(1, 0, 0)).abs_diff_eq(
-        Vec3(0, 1, 0), 1e-9
+    assert (
+        Mat4.from_quat(q)
+        .transform_vector3(Vec3(1, 0, 0))
+        .abs_diff_eq(Vec3(0, 1, 0), 1e-9)
     )
     rot3 = Mat3.from_rotation_z(math.pi / 2)
     m3t = Mat4.from_mat3_translation(rot3, t)
@@ -901,21 +919,29 @@ def check_mat4_full():
     assert Mat4.from_mat3(rot3).abs_diff_eq(Mat4.from_quat(q), 1e-12)
     assert Mat4.from_translation(t).transform_point3(Vec3(1, 1, 1)) == Vec3(11, 21, 31)
     assert Mat4.from_translation(t).transform_vector3(Vec3(1, 1, 1)) == Vec3(1, 1, 1)
-    assert Mat4.from_axis_angle(Vec3(0, 0, 1), math.pi / 2).transform_vector3(
-        Vec3(1, 0, 0)
-    ).abs_diff_eq(Vec3(0, 1, 0), 1e-9)
+    assert (
+        Mat4.from_axis_angle(Vec3(0, 0, 1), math.pi / 2)
+        .transform_vector3(Vec3(1, 0, 0))
+        .abs_diff_eq(Vec3(0, 1, 0), 1e-9)
+    )
     assert Mat4.from_scale(Vec3(2, 3, 4)).transform_point3(Vec3(1, 1, 1)) == Vec3(
         2, 3, 4
     )
-    assert Mat4.from_rotation_x(math.pi / 2).transform_vector3(
-        Vec3(0, 1, 0)
-    ).abs_diff_eq(Vec3(0, 0, 1), 1e-9)
-    assert Mat4.from_rotation_y(math.pi / 2).transform_vector3(
-        Vec3(0, 0, 1)
-    ).abs_diff_eq(Vec3(1, 0, 0), 1e-9)
-    assert Mat4.from_rotation_z(math.pi / 2).transform_vector3(
-        Vec3(1, 0, 0)
-    ).abs_diff_eq(Vec3(0, 1, 0), 1e-9)
+    assert (
+        Mat4.from_rotation_x(math.pi / 2)
+        .transform_vector3(Vec3(0, 1, 0))
+        .abs_diff_eq(Vec3(0, 0, 1), 1e-9)
+    )
+    assert (
+        Mat4.from_rotation_y(math.pi / 2)
+        .transform_vector3(Vec3(0, 0, 1))
+        .abs_diff_eq(Vec3(1, 0, 0), 1e-9)
+    )
+    assert (
+        Mat4.from_rotation_z(math.pi / 2)
+        .transform_vector3(Vec3(1, 0, 0))
+        .abs_diff_eq(Vec3(0, 1, 0), 1e-9)
+    )
 
     a, b, c = 0.1, 0.2, 0.3
     me = Mat4.from_euler(EulerRot.XYZ, a, b, c)
@@ -1028,21 +1054,31 @@ def check_affine3_full():
         2, 3, 4
     )
     q = Quat.from_rotation_z(math.pi / 2)
-    assert Affine3.from_quat(q).transform_vector3(Vec3(1, 0, 0)).abs_diff_eq(
-        Vec3(0, 1, 0), 1e-9
+    assert (
+        Affine3.from_quat(q)
+        .transform_vector3(Vec3(1, 0, 0))
+        .abs_diff_eq(Vec3(0, 1, 0), 1e-9)
     )
-    assert Affine3.from_axis_angle(Vec3(0, 0, 1), math.pi / 2).transform_vector3(
-        Vec3(1, 0, 0)
-    ).abs_diff_eq(Vec3(0, 1, 0), 1e-9)
-    assert Affine3.from_rotation_x(math.pi / 2).transform_vector3(
-        Vec3(0, 1, 0)
-    ).abs_diff_eq(Vec3(0, 0, 1), 1e-9)
-    assert Affine3.from_rotation_y(math.pi / 2).transform_vector3(
-        Vec3(0, 0, 1)
-    ).abs_diff_eq(Vec3(1, 0, 0), 1e-9)
-    assert Affine3.from_rotation_z(math.pi / 2).transform_vector3(
-        Vec3(1, 0, 0)
-    ).abs_diff_eq(Vec3(0, 1, 0), 1e-9)
+    assert (
+        Affine3.from_axis_angle(Vec3(0, 0, 1), math.pi / 2)
+        .transform_vector3(Vec3(1, 0, 0))
+        .abs_diff_eq(Vec3(0, 1, 0), 1e-9)
+    )
+    assert (
+        Affine3.from_rotation_x(math.pi / 2)
+        .transform_vector3(Vec3(0, 1, 0))
+        .abs_diff_eq(Vec3(0, 0, 1), 1e-9)
+    )
+    assert (
+        Affine3.from_rotation_y(math.pi / 2)
+        .transform_vector3(Vec3(0, 0, 1))
+        .abs_diff_eq(Vec3(1, 0, 0), 1e-9)
+    )
+    assert (
+        Affine3.from_rotation_z(math.pi / 2)
+        .transform_vector3(Vec3(1, 0, 0))
+        .abs_diff_eq(Vec3(0, 1, 0), 1e-9)
+    )
     ft = Affine3.from_translation(t)
     assert ft.transform_point3(Vec3(1, 1, 1)) == Vec3(11, 21, 31)
     assert ft.transform_vector3(Vec3(1, 1, 1)) == Vec3(1, 1, 1)
@@ -1061,9 +1097,7 @@ def check_affine3_full():
 
     frt = Affine3.from_rotation_translation(q, t)
     assert frt.abs_diff_eq(a, 1e-12)
-    assert Affine3.from_mat4(Mat4.from_rotation_translation(q, t)).abs_diff_eq(
-        a, 1e-12
-    )
+    assert Affine3.from_mat4(Mat4.from_rotation_translation(q, t)).abs_diff_eq(a, 1e-12)
 
     eye, center, up = Vec3(0, 0, 5), Vec3(0, 0, 0), Vec3(0, 1, 0)
     view = Affine3.look_at_rh(eye, center, up)
@@ -1101,10 +1135,30 @@ def check_affine3_full():
 
 def check_euler_rot_full():
     order = [
-        "ZYX", "ZXY", "YXZ", "YZX", "XYZ", "XZY",
-        "ZYZ", "ZXZ", "YXY", "YZY", "XYX", "XZX",
-        "ZYXEx", "ZXYEx", "YXZEx", "YZXEx", "XYZEx", "XZYEx",
-        "ZYZEx", "ZXZEx", "YXYEx", "YZYEx", "XYXEx", "XZXEx",
+        "ZYX",
+        "ZXY",
+        "YXZ",
+        "YZX",
+        "XYZ",
+        "XZY",
+        "ZYZ",
+        "ZXZ",
+        "YXY",
+        "YZY",
+        "XYX",
+        "XZX",
+        "ZYXEx",
+        "ZXYEx",
+        "YXZEx",
+        "YZXEx",
+        "XYZEx",
+        "XZYEx",
+        "ZYZEx",
+        "ZXZEx",
+        "YXYEx",
+        "YZYEx",
+        "XYXEx",
+        "XZXEx",
     ]
     for i, name in enumerate(order):
         variant = getattr(EulerRot, name)
@@ -1128,9 +1182,7 @@ def check_euler_rot_full():
     wrong_class = type("NotEuler", (), {"__int__": lambda self: 4})()
     assert_raises(TypeError, Quat.from_euler, wrong_class, 0.1, 0.2, 0.3)
     bad_name = type("EulerRot", (), {"name": "QQQ"})()
-    assert_raises(
-        (ValueError, TypeError), Quat.from_euler, bad_name, 0.1, 0.2, 0.3
-    )
+    assert_raises((ValueError, TypeError), Quat.from_euler, bad_name, 0.1, 0.2, 0.3)
 
     extrinsic = Quat.from_euler(EulerRot.XYZEx, 0.1, 0.2, 0.3)
     manual = (

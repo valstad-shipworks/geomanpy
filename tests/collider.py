@@ -494,9 +494,7 @@ def test_add_include_refine_mutate_in_place(failures):
     ret = c.refine_bounding()
     if ret is not None:
         failures.append(f"refine_bounding() returned {ret!r}, expected None")
-    _expect(
-        failures, "mask after refine", c.mask(), MASK_SPHERES | MASK_CUBOIDS
-    )
+    _expect(failures, "mask after refine", c.mask(), MASK_SPHERES | MASK_CUBOIDS)
 
 
 def test_getters_return_stored_shapes(failures):
@@ -688,15 +686,21 @@ def test_transform_delegation(failures):
 
     rz90 = Mat3(Vec3(0.0, 1.0, 0.0), Vec3(-1.0, 0.0, 0.0), Vec3(0.0, 0.0, 1.0))
     r = c.rotated_mat(rz90)
-    _expect_vec(failures, "rotated_mat center", r.spheres().get(0).center, (0.0, 1.0, 0.0))
+    _expect_vec(
+        failures, "rotated_mat center", r.spheres().get(0).center, (0.0, 1.0, 0.0)
+    )
 
     half_sqrt2 = 0.7071067811865476
     q = c.rotated_quat(Quat(0.0, 0.0, half_sqrt2, half_sqrt2))
-    _expect_vec(failures, "rotated_quat center", q.spheres().get(0).center, (0.0, 1.0, 0.0))
+    _expect_vec(
+        failures, "rotated_quat center", q.spheres().get(0).center, (0.0, 1.0, 0.0)
+    )
 
     ident = Mat3(Vec3(1.0, 0.0, 0.0), Vec3(0.0, 1.0, 0.0), Vec3(0.0, 0.0, 1.0))
     tf = c.transformed(Affine3(Vec3(5.0, 6.0, 7.0), ident))
-    _expect_vec(failures, "transformed center", tf.spheres().get(0).center, (6.0, 6.0, 7.0))
+    _expect_vec(
+        failures, "transformed center", tf.spheres().get(0).center, (6.0, 6.0, 7.0)
+    )
 
     s0 = c.spheres().get(0)
     _expect_vec(failures, "original center untouched", s0.center, (1.0, 0.0, 0.0))
@@ -730,9 +734,7 @@ def test_bounding_volumes(failures):
     if bp3.radius > 6.0 + 1e-5:
         failures.append(f"refine_bounding inflated radius to {bp3.radius}")
     for cx in (0.0, 10.0):
-        d = (
-            (bp3.center.x - cx) ** 2 + bp3.center.y**2 + bp3.center.z**2
-        ) ** 0.5
+        d = ((bp3.center.x - cx) ** 2 + bp3.center.y**2 + bp3.center.z**2) ** 0.5
         if d + 1.0 > bp3.radius + 1e-4:
             failures.append(
                 f"refined bounding does not enclose sphere at x={cx}: "
@@ -748,7 +750,9 @@ def test_try_stretch_d(failures):
         failures.append("try_stretch_d returned None for a pointcloud-free collider")
         return
     if not isinstance(st, Collider):
-        failures.append(f"try_stretch_d returned {type(st).__name__}, expected Collider")
+        failures.append(
+            f"try_stretch_d returned {type(st).__name__}, expected Collider"
+        )
     _expect(
         failures,
         "stretched covers midpoint",
