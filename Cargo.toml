@@ -1,6 +1,6 @@
 [package]
 name = "geomanpy"
-version = "0.4.2"
+version = "0.4.3"
 edition = "2024"
 license = "Apache-2.0"
 authors = ["Bowan Foryt <bowan@valstad.com>"]
@@ -20,6 +20,12 @@ required-features = ["pyo3-backend"]
 [[test]]
 name = "wreck_py"
 path = "tests/wreck_py.rs"
+harness = false
+required-features = ["pyo3-backend"]
+
+[[test]]
+name = "collider_py"
+path = "tests/collider_py.rs"
 harness = false
 required-features = ["pyo3-backend"]
 

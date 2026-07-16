@@ -4,7 +4,7 @@ use squiggle::Spline;
 
 #[cfg_attr(
     feature = "pyo3-backend",
-    pyo3::pyclass(frozen, skip_from_py_object, name = "Spline")
+    pyo3::pyclass(module = "geomanpy", frozen, skip_from_py_object, name = "Spline")
 )]
 #[cfg_attr(
     feature = "rustpython-backend",

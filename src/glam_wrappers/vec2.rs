@@ -4,7 +4,7 @@ use glam::DVec2;
 
 #[cfg_attr(
     feature = "pyo3-backend",
-    pyo3::pyclass(frozen, skip_from_py_object, name = "Vec2")
+    pyo3::pyclass(module = "geomanpy", frozen, skip_from_py_object, name = "Vec2")
 )]
 #[cfg_attr(
     feature = "rustpython-backend",

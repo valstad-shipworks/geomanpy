@@ -4,7 +4,7 @@ use wreck::Line;
 
 #[cfg_attr(
     feature = "pyo3-backend",
-    pyo3::pyclass(frozen, skip_from_py_object, name = "Line")
+    pyo3::pyclass(module = "geomanpy", frozen, skip_from_py_object, name = "Line")
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
@@ -20,7 +20,7 @@ mod pyo3_impl {
     use crate::glam_wrappers::PyDVec3;
     use crate::pickle::pickle_decode;
     use crate::wreck_wrappers::pyo3_glue::{dv3, v3d};
-    use crate::wreck_wrappers::{PyConvexPolygon, PyShape};
+    use crate::wreck_wrappers::{AnyShape, PyConvexPolygon};
     use pyo3::PyResult;
     use pyo3::prelude::*;
     use wreck::Stretchable;
@@ -57,10 +57,10 @@ mod pyo3_impl {
         fn dir(&self) -> PyDVec3 {
             v3d(self.0.dir)
         }
-        fn stretch(&self, translation: PyDVec3) -> Vec<PyShape> {
+        fn stretch(&self, translation: PyDVec3) -> Vec<AnyShape> {
             match self.0.stretch(dv3(translation)) {
-                LineStretch::Parallel(l) => vec![PyShape::Line(PyLine(l))],
-                LineStretch::Polygon(p) => vec![PyShape::ConvexPolygon(PyConvexPolygon(p))],
+                LineStretch::Parallel(l) => vec![AnyShape::Line(PyLine(l))],
+                LineStretch::Polygon(p) => vec![AnyShape::ConvexPolygon(PyConvexPolygon(p))],
             }
         }
         fn __repr__(&self) -> String {

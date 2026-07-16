@@ -4,7 +4,7 @@ use wreck::Plane;
 
 #[cfg_attr(
     feature = "pyo3-backend",
-    pyo3::pyclass(frozen, skip_from_py_object, name = "Plane")
+    pyo3::pyclass(module = "geomanpy", frozen, skip_from_py_object, name = "Plane")
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
@@ -19,7 +19,7 @@ mod pyo3_impl {
     use super::*;
     use crate::glam_wrappers::PyDVec3;
     use crate::pickle::pickle_decode;
-    use crate::wreck_wrappers::PyShape;
+    use crate::wreck_wrappers::AnyShape;
     use crate::wreck_wrappers::pyo3_glue::{dv3, v3d};
     use pyo3::PyResult;
     use pyo3::prelude::*;
@@ -56,8 +56,8 @@ mod pyo3_impl {
         fn d(&self) -> f64 {
             self.0.d as f64
         }
-        fn stretch(&self, translation: PyDVec3) -> Vec<PyShape> {
-            vec![PyShape::Plane(PyPlane(self.0.stretch(dv3(translation))))]
+        fn stretch(&self, translation: PyDVec3) -> Vec<AnyShape> {
+            vec![AnyShape::Plane(PyPlane(self.0.stretch(dv3(translation))))]
         }
         fn __repr__(&self) -> String {
             self.0.to_string()

@@ -4,7 +4,7 @@ use wreck::soa::SpheresSoA;
 
 #[cfg_attr(
     feature = "pyo3-backend",
-    pyo3::pyclass(from_py_object, name = "SphereCollection")
+    pyo3::pyclass(module = "geomanpy", from_py_object, name = "SphereCollection")
 )]
 #[cfg_attr(
     feature = "rustpython-backend",

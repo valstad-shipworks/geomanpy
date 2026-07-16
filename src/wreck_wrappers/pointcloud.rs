@@ -4,7 +4,7 @@ use wreck::Pointcloud;
 
 #[cfg_attr(
     feature = "pyo3-backend",
-    pyo3::pyclass(frozen, from_py_object, name = "Pointcloud")
+    pyo3::pyclass(module = "geomanpy", frozen, from_py_object, name = "Pointcloud")
 )]
 #[cfg_attr(
     feature = "rustpython-backend",

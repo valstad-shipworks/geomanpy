@@ -4,7 +4,12 @@ use wreck::ConvexPolytope;
 
 #[cfg_attr(
     feature = "pyo3-backend",
-    pyo3::pyclass(frozen, skip_from_py_object, name = "ConvexPolytope")
+    pyo3::pyclass(
+        module = "geomanpy",
+        frozen,
+        skip_from_py_object,
+        name = "ConvexPolytope"
+    )
 )]
 #[cfg_attr(
     feature = "rustpython-backend",
@@ -20,7 +25,7 @@ mod pyo3_impl {
     use crate::glam_wrappers::PyDVec3;
     use crate::pickle::pickle_decode;
     use crate::wreck_wrappers::pyo3_glue::dv3;
-    use crate::wreck_wrappers::{PyCuboid, PyShape};
+    use crate::wreck_wrappers::{AnyShape, PyCuboid};
     use glam::Vec3;
     use pyo3::PyResult;
     use pyo3::prelude::*;
@@ -87,8 +92,8 @@ mod pyo3_impl {
         fn get_obb(&self) -> PyCuboid {
             PyCuboid(self.0.obb)
         }
-        fn stretch(&self, translation: PyDVec3) -> Vec<PyShape> {
-            vec![PyShape::ConvexPolytope(PyConvexPolytope(
+        fn stretch(&self, translation: PyDVec3) -> Vec<AnyShape> {
+            vec![AnyShape::ConvexPolytope(PyConvexPolytope(
                 self.0.stretch(dv3(translation)),
             ))]
         }
