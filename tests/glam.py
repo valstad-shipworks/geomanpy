@@ -318,7 +318,10 @@ def check_vec_common_methods():
         hi = cls(*([2.0, 3.0] + [1.0] * (n - 2)))
         assert veq(
             v.clamp(lo, hi),
-            [min(max(x, l), h) for x, l, h in zip(a, lo.to_array(), hi.to_array())],
+            [
+                min(max(x, low), high)
+                for x, low, high in zip(a, lo.to_array(), hi.to_array())
+            ],
         )
 
         c = [2.0, -1.0, 5.0, 0.5][:n]
