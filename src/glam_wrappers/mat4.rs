@@ -37,8 +37,8 @@ impl From<PyDMat4> for DMat4 {
 mod pyo3_impl {
     use super::*;
     use crate::glam_wrappers::{
-        PyDMat3, PyDQuat, PyDVec3, PyDVec4, PyEulerRot, array2_from_rows, extract_numpy_matrix,
-        transpose_array2,
+        PyDAffine3, PyDMat3, PyDQuat, PyDVec3, PyDVec4, PyEulerRot, array2_from_rows,
+        extract_numpy_matrix, transpose_array2,
     };
     use crate::pickle::pickle_decode;
     use crate::{impl_dataclass_fields, impl_getnewargs_ex};
@@ -143,6 +143,11 @@ mod pyo3_impl {
         #[inline]
         fn from_mat3_translation(mat3: PyDMat3, translation: PyDVec3) -> Self {
             Self(DMat4::from_mat3_translation(mat3.0, translation.0))
+        }
+        #[staticmethod]
+        #[inline]
+        fn from_affine3(a: PyDAffine3) -> Self {
+            Self(DMat4::from(a.0))
         }
         #[staticmethod]
         #[inline]
@@ -436,6 +441,10 @@ mod pyo3_impl {
             (PyDVec3(s), PyDQuat(r), PyDVec3(t))
         }
         #[inline]
+        fn to_affine3(&self) -> PyDAffine3 {
+            PyDAffine3(glam::DAffine3::from_mat4(self.0))
+        }
+        #[inline]
         fn to_euler(&self, order: PyEulerRot) -> (f64, f64, f64) {
             self.0.to_euler(order.into())
         }
@@ -632,8 +641,8 @@ mod pyo3_impl {
 mod rustpython_impl {
     use super::*;
     use crate::glam_wrappers::{
-        PyDMat3, PyDQuat, PyDVec3, PyDVec4, PyEulerRot, quat::extract_quat, vec3::extract_vec3,
-        vec4::extract_vec4,
+        PyDAffine3, PyDMat3, PyDQuat, PyDVec3, PyDVec4, PyEulerRot, affine3::extract_affine3,
+        quat::extract_quat, vec3::extract_vec3, vec4::extract_vec4,
     };
 
     fn extract_mat3(obj: &PyObjectRef, vm: &VirtualMachine) -> PyResult<glam::DMat3> {
@@ -834,6 +843,10 @@ mod rustpython_impl {
                 extract_mat3(&mat3, vm)?,
                 extract_vec3(&translation, vm)?,
             )))
+        }
+        #[pystaticmethod]
+        fn from_affine3(a: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(DMat4::from(extract_affine3(&a, vm)?)))
         }
         #[pystaticmethod]
         fn from_translation(translation: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
@@ -1153,6 +1166,10 @@ mod rustpython_impl {
         fn to_scale_rotation_translation(&self) -> (PyDVec3, PyDQuat, PyDVec3) {
             let (s, r, t) = self.0.to_scale_rotation_translation();
             (PyDVec3(s), PyDQuat(r), PyDVec3(t))
+        }
+        #[pymethod]
+        fn to_affine3(&self) -> PyDAffine3 {
+            PyDAffine3(glam::DAffine3::from_mat4(self.0))
         }
         #[pymethod]
         fn to_euler(&self, order: PyObjectRef, vm: &VirtualMachine) -> PyResult<(f64, f64, f64)> {

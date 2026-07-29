@@ -1102,6 +1102,13 @@ def check_affine3_full():
     assert frt.abs_diff_eq(a, 1e-12)
     assert Affine3.from_mat4(Mat4.from_rotation_translation(q, t)).abs_diff_eq(a, 1e-12)
 
+    m4 = a.to_mat4()
+    assert m4 == Mat4.from_affine3(a)
+    assert m4.w_axis == t.extend(1.0)
+    assert Mat3.from_mat4(m4) == a.matrix3
+    assert m4.to_affine3() == a
+    assert Affine3.from_mat4(m4) == a
+
     eye, center, up = Vec3(0, 0, 5), Vec3(0, 0, 0), Vec3(0, 1, 0)
     view = Affine3.look_at_rh(eye, center, up)
     assert view.transform_point3(eye).abs_diff_eq(Vec3(0, 0, 0), 1e-12)
@@ -1270,7 +1277,12 @@ def check_numpy_interop():
     aff = Affine3.from_numpy(aff_rows)
     assert aff.translation == Vec3(5, 6, 7)
     assert aff.matrix3 == Mat3.IDENTITY
-    assert_raises(ValueError, Affine3.from_numpy, np.zeros((4, 4)))
+
+    homogeneous = np.vstack([aff_rows, [0.0, 0.0, 0.0, 1.0]])
+    assert Affine3.from_numpy(homogeneous) == aff
+    assert np.array_equal(np.asarray(aff.to_mat4()), homogeneous)
+    assert_raises(ValueError, Affine3.from_numpy, np.zeros((3, 3)))
+    assert_raises(ValueError, Affine3.from_numpy, np.zeros((2, 4)))
 
     v = Vec3(1.5, 2.5, 3.5)
     out = v.to_numpy()

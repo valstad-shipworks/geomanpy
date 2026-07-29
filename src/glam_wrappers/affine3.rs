@@ -37,8 +37,7 @@ impl From<PyDAffine3> for DAffine3 {
 mod pyo3_impl {
     use super::*;
     use crate::glam_wrappers::{
-        PyDMat3, PyDMat4, PyDQuat, PyDVec3, array2_from_rows, extract_numpy_matrix,
-        impl_serde_methods, transpose_array2,
+        PyDMat3, PyDMat4, PyDQuat, PyDVec3, array2_from_rows, impl_serde_methods, transpose_array2,
     };
     use crate::pickle::pickle_decode;
     use crate::{impl_dataclass_fields, impl_getnewargs_ex};
@@ -100,7 +99,18 @@ mod pyo3_impl {
         #[staticmethod]
         #[inline]
         fn from_numpy(array: PyArrayLike2<'_, f64, AllowTypeChange>) -> PyResult<Self> {
-            let rows = extract_numpy_matrix::<3, 4>(array, "Affine3")?;
+            let view = array.as_array();
+            if view.shape() != [3, 4] && view.shape() != [4, 4] {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "Affine3.from_numpy expected shape (3, 4) or (4, 4)",
+                ));
+            }
+            let mut rows = [[0.0; 4]; 3];
+            for (r, row) in rows.iter_mut().enumerate() {
+                for (c, val) in row.iter_mut().enumerate() {
+                    *val = view[(r, c)];
+                }
+            }
             Ok(Self(DAffine3::from_cols_array_2d(&transpose_array2(rows))))
         }
         #[staticmethod]
@@ -252,6 +262,10 @@ mod pyo3_impl {
         #[inline]
         fn to_numpy<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
             array2_from_rows(py, transpose_array2(self.0.to_cols_array_2d()))
+        }
+        #[inline]
+        fn to_mat4(&self) -> PyDMat4 {
+            PyDMat4(glam::DMat4::from(self.0))
         }
     }
 
@@ -466,7 +480,18 @@ mod rustpython_impl {
         }
         #[pystaticmethod]
         fn from_numpy(obj: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            let rows = crate::glam_wrappers::extract_numpy_matrix_rp::<3, 4>(&obj, "Affine3", vm)?;
+            let arr: ndarray::ArrayD<f64> = rumpy::convert::obj_to_typed::<f64>(&obj, vm)?;
+            if arr.shape() != [3, 4] && arr.shape() != [4, 4] {
+                return Err(vm.new_value_error(
+                    "Affine3.from_numpy expected shape (3, 4) or (4, 4)".to_owned(),
+                ));
+            }
+            let mut rows = [[0.0; 4]; 3];
+            for (r, row) in rows.iter_mut().enumerate() {
+                for (c, val) in row.iter_mut().enumerate() {
+                    *val = arr[[r, c]];
+                }
+            }
             Ok(Self(DAffine3::from_cols_array_2d(
                 &crate::glam_wrappers::transpose_array2_rp(rows),
             )))
@@ -653,6 +678,10 @@ mod rustpython_impl {
             let (s, r, t) = self.0.to_scale_rotation_translation();
             (PyDVec3(s), PyDQuat(r), PyDVec3(t))
         }
+        #[pymethod]
+        fn to_mat4(&self) -> PyDMat4 {
+            PyDMat4(glam::DMat4::from(self.0))
+        }
 
         #[pymethod]
         fn transform_point3(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<PyDVec3> {
@@ -791,3 +820,6 @@ mod rustpython_impl {
 
 #[cfg(feature = "rustpython-backend")]
 pub(crate) use rustpython_impl::install_constants;
+
+#[cfg(feature = "rustpython-backend")]
+pub(crate) use rustpython_impl::extract as extract_affine3;

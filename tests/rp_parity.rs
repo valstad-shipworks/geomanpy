@@ -144,6 +144,30 @@ assert abs(ex - 0.1) < 1e-6 and abs(ey - 0.2) < 1e-6 and abs(ez - 0.3) < 1e-6
 }
 
 #[test]
+fn affine3_mat4_conversions() {
+    run(r#"
+from geomanpy import Mat4, Affine3, Vec3, Quat
+
+a = Affine3.from_rotation_translation(Quat.from_rotation_z(0.7), Vec3(1.0, 2.0, 3.0))
+m4 = a.to_mat4()
+assert Mat4.from_affine3(a) == m4
+assert m4.w_axis == Vec3(1.0, 2.0, 3.0).extend(1.0)
+assert m4.to_affine3() == a
+assert Affine3.from_mat4(m4) == a
+
+rows3 = [[1.0, 0.0, 0.0, 5.0], [0.0, 1.0, 0.0, 6.0], [0.0, 0.0, 1.0, 7.0]]
+aff = Affine3.from_numpy(rows3)
+assert aff.translation == Vec3(5.0, 6.0, 7.0)
+assert Affine3.from_numpy(rows3 + [[0.0, 0.0, 0.0, 1.0]]) == aff
+try:
+    Affine3.from_numpy([[1.0, 2.0], [3.0, 4.0]])
+    raise AssertionError("expected ValueError for bad shape")
+except ValueError:
+    pass
+"#);
+}
+
+#[test]
 fn sphere_wreck_surface() {
     run(r#"
 from geomanpy import Sphere, Vec3
