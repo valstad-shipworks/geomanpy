@@ -2,17 +2,27 @@
 
 use wreck::{Collider, Pointcloud};
 
+#[cfg(not(feature = "rustpython-backend"))]
 #[cfg_attr(
     feature = "pyo3-backend",
     pyo3::pyclass(module = "geomanpy", skip_from_py_object, name = "Collider")
 )]
-#[cfg_attr(
-    feature = "rustpython-backend",
-    rustpython_vm::pyclass(module = "geomanpy", name = "Collider")
-)]
-#[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone)]
 pub struct PyCollider(pub Collider<Pointcloud>);
+
+#[cfg(feature = "rustpython-backend")]
+#[rustpython_vm::pyclass(module = "geomanpy", name = "Collider")]
+#[derive(rustpython_vm::PyPayload, Debug)]
+pub struct PyCollider(pub rustpython_vm::common::lock::PyRwLock<Collider<Pointcloud>>);
+
+#[cfg(feature = "rustpython-backend")]
+impl Clone for PyCollider {
+    fn clone(&self) -> Self {
+        Self(rustpython_vm::common::lock::PyRwLock::new(
+            self.0.read().clone(),
+        ))
+    }
+}
 
 #[cfg(feature = "pyo3-backend")]
 mod pyo3_impl {
@@ -143,8 +153,9 @@ mod rustpython_impl {
         PyLineSegment, PyPlane, PyPointcloud, PyRay, PySphere, PySphereCollection,
     };
     use rustpython_vm::{
-        Py, PyObjectRef, PyResult, VirtualMachine,
+        Py, PyObjectRef, PyRef, PyResult, VirtualMachine,
         builtins::PyType,
+        common::lock::PyRwLock,
         function::FuncArgs,
         pyclass,
         types::{Constructor, Representable},
@@ -162,7 +173,7 @@ mod rustpython_impl {
             return Ok(());
         }
         if let Some(other) = obj.downcast_ref::<PyCollider>() {
-            c.include(other.0.clone());
+            c.include(other.0.read().clone());
             return Ok(());
         }
         if let Ok(shape) = AnyShape::try_from_object(obj, vm) {
@@ -176,7 +187,7 @@ mod rustpython_impl {
         })?;
         for item in &seq {
             if let Some(other) = item.downcast_ref::<PyCollider>() {
-                c.include(other.0.clone());
+                c.include(other.0.read().clone());
             } else {
                 add_to_collider(c, item, vm)?;
             }
@@ -188,24 +199,37 @@ mod rustpython_impl {
         type Args = FuncArgs;
         fn py_new(_cls: &Py<PyType>, args: FuncArgs, vm: &VirtualMachine) -> PyResult<Self> {
             if let Some(state) = crate::rp_serde::take_pickle_state(&args, vm)? {
-                return Ok(Self(
+                return Ok(Self(PyRwLock::new(
                     crate::pickle::pickle_decode_raw::<Collider<Pointcloud>>(&state)
                         .map_err(|e| vm.new_value_error(e))?,
-                ));
+                )));
             }
-            Ok(Self(Collider::new()))
+            if !args.args.is_empty() {
+                return Err(vm.new_type_error(format!(
+                    "Collider() takes no arguments ({} given)",
+                    args.args.len()
+                )));
+            }
+            if let Some(err) = args.check_kwargs_empty(vm) {
+                return Err(err);
+            }
+            Ok(Self(PyRwLock::new(Collider::new())))
         }
     }
     impl Representable for PyCollider {
         fn repr_str(zelf: &Py<Self>, _vm: &VirtualMachine) -> PyResult<String> {
-            Ok(format!("Collider(mask=0x{:04x})", zelf.0.mask()))
+            Ok(format!("Collider(mask=0x{:04x})", zelf.0.read().mask()))
         }
     }
+    impl PyCollider {
+        pub(crate) const DATACLASS_FIELDS: &'static [&'static str] = &[];
+    }
+
     #[pyclass(with(Constructor, Representable))]
     impl PyCollider {
         #[pymethod]
         fn mask(&self) -> u16 {
-            self.0.mask()
+            self.0.read().mask()
         }
         #[pymethod]
         fn try_stretch_d(
@@ -214,38 +238,36 @@ mod rustpython_impl {
             vm: &VirtualMachine,
         ) -> PyResult<Option<Self>> {
             let t = extract_vec3(&translation, vm)?;
-            Ok(self.0.try_stretch_d(t).map(|c| Self(c.into())))
+            Ok(self
+                .0
+                .read()
+                .try_stretch_d(t)
+                .map(|c| Self(PyRwLock::new(c.into()))))
         }
         #[pymethod]
         fn __getnewargs_ex__(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            crate::rp_serde::getnewargs_ex(&self.0, vm)
+            crate::rp_serde::getnewargs_ex(&*self.0.read(), vm)
         }
         #[pygetset]
-        fn __dataclass_fields__(&self, vm: &VirtualMachine) -> PyObjectRef {
-            crate::rp_serde::dataclass_fields(&[], vm)
+        fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::dataclass_dict(zelf.into(), Self::DATACLASS_FIELDS, vm)
         }
 
-        /// Add a shape and return the new Collider.
-        ///
-        /// Note: pyo3 mutates in place; under rustpython we return a new
-        /// Collider because `#[pymethod]` only gives us `&self`. Use the
-        /// returned value for chaining.
         #[pymethod]
-        fn add(&self, shape: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            let mut out = self.0.clone();
-            add_to_collider(&mut out, &shape, vm)?;
-            Ok(Self(out))
+        fn add(&self, shape: PyObjectRef, vm: &VirtualMachine) -> PyResult<()> {
+            let shape = AnyShape::try_from_object(&shape, vm)?;
+            shape.push_into(&mut self.0.write());
+            Ok(())
         }
 
-        /// Merge another Collider into a new Collider.
         #[pymethod]
-        fn include(&self, other: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+        fn include(&self, other: PyObjectRef, vm: &VirtualMachine) -> PyResult<()> {
             let other = other
                 .downcast_ref::<PyCollider>()
                 .ok_or_else(|| vm.new_type_error("expected Collider".to_owned()))?;
-            let mut out = self.0.clone();
-            out.include(other.0.clone());
-            Ok(Self(out))
+            let data = other.0.read().clone();
+            self.0.write().include(data);
+            Ok(())
         }
 
         /// Build a Collider from a single shape, another Collider, a sequence
@@ -254,38 +276,35 @@ mod rustpython_impl {
         fn from_any(obstacles: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
             let mut out = Collider::new();
             extend_any(&mut out, &obstacles, vm)?;
-            Ok(Self(out))
+            Ok(Self(PyRwLock::new(out)))
         }
 
         /// Merge another Collider (or any obstacle) into a new Collider.
         #[pymethod]
         fn merge(&self, other: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            let mut out = self.0.clone();
+            let mut out = self.0.read().clone();
             extend_any(&mut out, &other, vm)?;
-            Ok(Self(out))
+            Ok(Self(PyRwLock::new(out)))
         }
 
         /// New Collider combining this one with any obstacle (shape, sequence,
         /// Collider, or None).
         #[pymethod]
         fn with_any(&self, obstacle: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            let mut out = self.0.clone();
+            let mut out = self.0.read().clone();
             extend_any(&mut out, &obstacle, vm)?;
-            Ok(Self(out))
+            Ok(Self(PyRwLock::new(out)))
         }
 
-        /// Refine bounding volumes — returns a new Collider.
         #[pymethod]
-        fn refine_bounding(&self) -> Self {
-            let mut out = self.0.clone();
-            out.refine_bounding();
-            Self(out)
+        fn refine_bounding(&self) {
+            self.0.write().refine_bounding();
         }
 
         /// Test whether any contained shape collides with the given shape.
         #[pymethod]
         fn collides(&self, shape: PyObjectRef, vm: &VirtualMachine) -> PyResult<bool> {
-            shape_collides_collider(&self.0, &shape, vm)
+            shape_collides_collider(&self.0.read(), &shape, vm)
         }
 
         /// Collider vs Collider.
@@ -294,18 +313,23 @@ mod rustpython_impl {
             let other = other
                 .downcast_ref::<PyCollider>()
                 .ok_or_else(|| vm.new_type_error("expected Collider".to_owned()))?;
-            Ok(self.0.collides_other(&other.0))
+            let lhs = self.0.read();
+            if std::ptr::eq(&self.0, &other.0) {
+                return Ok(lhs.collides_other(&lhs));
+            }
+            Ok(lhs.collides_other(&other.0.read()))
         }
 
         #[pymethod]
         fn spheres(&self) -> PySphereCollection {
-            PySphereCollection(self.0.spheres().clone())
+            PySphereCollection(PyRwLock::new(self.0.read().spheres().clone()))
         }
         #[pymethod]
         fn capsules(&self, vm: &VirtualMachine) -> PyObjectRef {
             use rustpython_vm::PyPayload;
             let items: Vec<PyObjectRef> = self
                 .0
+                .read()
                 .capsules()
                 .iter()
                 .copied()
@@ -318,6 +342,7 @@ mod rustpython_impl {
             use rustpython_vm::PyPayload;
             let items: Vec<PyObjectRef> = self
                 .0
+                .read()
                 .cuboids()
                 .iter()
                 .copied()
@@ -330,6 +355,7 @@ mod rustpython_impl {
             use rustpython_vm::PyPayload;
             let items: Vec<PyObjectRef> = self
                 .0
+                .read()
                 .cylinders()
                 .iter()
                 .copied()
@@ -342,6 +368,7 @@ mod rustpython_impl {
             use rustpython_vm::PyPayload;
             let items: Vec<PyObjectRef> = self
                 .0
+                .read()
                 .polytopes()
                 .iter()
                 .map(|p| PyConvexPolytope(p.clone()).into_pyobject(vm))
@@ -353,6 +380,7 @@ mod rustpython_impl {
             use rustpython_vm::PyPayload;
             let items: Vec<PyObjectRef> = self
                 .0
+                .read()
                 .polygons()
                 .iter()
                 .map(|p| PyConvexPolygon(p.clone()).into_pyobject(vm))
@@ -364,6 +392,7 @@ mod rustpython_impl {
             use rustpython_vm::PyPayload;
             let items: Vec<PyObjectRef> = self
                 .0
+                .read()
                 .lines()
                 .iter()
                 .copied()
@@ -376,6 +405,7 @@ mod rustpython_impl {
             use rustpython_vm::PyPayload;
             let items: Vec<PyObjectRef> = self
                 .0
+                .read()
                 .rays()
                 .iter()
                 .copied()
@@ -388,6 +418,7 @@ mod rustpython_impl {
             use rustpython_vm::PyPayload;
             let items: Vec<PyObjectRef> = self
                 .0
+                .read()
                 .segments()
                 .iter()
                 .copied()
@@ -400,6 +431,7 @@ mod rustpython_impl {
             use rustpython_vm::PyPayload;
             let items: Vec<PyObjectRef> = self
                 .0
+                .read()
                 .planes()
                 .iter()
                 .copied()
@@ -412,6 +444,7 @@ mod rustpython_impl {
             use rustpython_vm::PyPayload;
             let items: Vec<PyObjectRef> = self
                 .0
+                .read()
                 .pointclouds()
                 .iter()
                 .map(|p| PyPointcloud(p.clone()).into_pyobject(vm))
@@ -421,36 +454,40 @@ mod rustpython_impl {
 
         #[pymethod]
         fn scaled(&self, factor: f64) -> Self {
-            Self(self.0.scaled_d(factor))
+            Self(PyRwLock::new(self.0.read().scaled_d(factor)))
         }
         #[pymethod]
         fn translated(&self, offset: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.translated_d(extract_vec3(&offset, vm)?)))
+            let t = extract_vec3(&offset, vm)?;
+            Ok(Self(PyRwLock::new(self.0.read().translated_d(t))))
         }
         #[pymethod]
         fn rotated_mat(&self, mat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.rotated_mat_d(extract_mat3(&mat, vm)?)))
+            let m = extract_mat3(&mat, vm)?;
+            Ok(Self(PyRwLock::new(self.0.read().rotated_mat_d(m))))
         }
         #[pymethod]
         fn rotated_quat(&self, quat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.rotated_quat_d(extract_quat(&quat, vm)?)))
+            let q = extract_quat(&quat, vm)?;
+            Ok(Self(PyRwLock::new(self.0.read().rotated_quat_d(q))))
         }
         #[pymethod]
         fn transformed(&self, tf: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.transformed_d(extract_affine3(&tf, vm)?)))
+            let a = extract_affine3(&tf, vm)?;
+            Ok(Self(PyRwLock::new(self.0.read().transformed_d(a))))
         }
 
         #[pymethod]
         fn broadphase(&self) -> PySphere {
-            PySphere(self.0.broadphase())
+            PySphere(self.0.read().broadphase())
         }
         #[pymethod]
         fn obb(&self) -> PyCuboid {
-            PyCuboid(self.0.obb())
+            PyCuboid(self.0.read().obb())
         }
         #[pymethod]
         fn aabb(&self) -> PyCuboid {
-            PyCuboid(self.0.aabb())
+            PyCuboid(self.0.read().aabb())
         }
     }
 }

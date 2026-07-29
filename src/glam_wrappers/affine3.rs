@@ -37,8 +37,7 @@ impl From<PyDAffine3> for DAffine3 {
 mod pyo3_impl {
     use super::*;
     use crate::glam_wrappers::{
-        PyDMat3, PyDMat4, PyDQuat, PyDVec3, array2_from_rows, extract_numpy_matrix,
-        impl_serde_methods, transpose_array2,
+        PyDMat3, PyDMat4, PyDQuat, PyDVec3, array2_from_rows, impl_serde_methods, transpose_array2,
     };
     use crate::pickle::pickle_decode;
     use crate::{impl_dataclass_fields, impl_getnewargs_ex};
@@ -100,7 +99,18 @@ mod pyo3_impl {
         #[staticmethod]
         #[inline]
         fn from_numpy(array: PyArrayLike2<'_, f64, AllowTypeChange>) -> PyResult<Self> {
-            let rows = extract_numpy_matrix::<3, 4>(array, "Affine3")?;
+            let view = array.as_array();
+            if view.shape() != [3, 4] && view.shape() != [4, 4] {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "Affine3.from_numpy expected shape (3, 4) or (4, 4)",
+                ));
+            }
+            let mut rows = [[0.0; 4]; 3];
+            for (r, row) in rows.iter_mut().enumerate() {
+                for (c, val) in row.iter_mut().enumerate() {
+                    *val = view[(r, c)];
+                }
+            }
             Ok(Self(DAffine3::from_cols_array_2d(&transpose_array2(rows))))
         }
         #[staticmethod]
@@ -253,6 +263,10 @@ mod pyo3_impl {
         fn to_numpy<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
             array2_from_rows(py, transpose_array2(self.0.to_cols_array_2d()))
         }
+        #[inline]
+        fn to_mat4(&self) -> PyDMat4 {
+            PyDMat4(glam::DMat4::from(self.0))
+        }
     }
 
     #[pymethods]
@@ -338,7 +352,7 @@ mod rustpython_impl {
         PyDMat3, PyDMat4, PyDQuat, PyDVec3, quat::extract_quat, vec3::extract_vec3,
     };
     use rustpython_vm::{
-        Py, PyObject, PyObjectRef, PyPayload, PyResult, VirtualMachine,
+        Py, PyObject, PyObjectRef, PyPayload, PyRef, PyResult, VirtualMachine,
         builtins::PyType,
         function::{FuncArgs, PyComparisonValue},
         protocol::PyNumberMethods,
@@ -367,15 +381,42 @@ mod rustpython_impl {
                         .map_err(|e| vm.new_value_error(e))?,
                 ));
             }
-            match args.args.len() {
-                2 => {
-                    let translation = extract_vec3(&args.args[0], vm)?;
-                    let rotation = extract_mat3(&args.args[1], vm)?;
+            if args.args.len() > 2 {
+                return Err(vm.new_type_error(format!(
+                    "Affine3() takes 2 positional arguments (translation, rotation), got {}",
+                    args.args.len()
+                )));
+            }
+            let mut kwargs = args.kwargs;
+            let mut positional = args.args.into_iter();
+            let mut take = |name: &str| match positional.next() {
+                Some(v) => {
+                    if kwargs.swap_remove(name).is_some() {
+                        Err(vm.new_type_error(format!(
+                            "Affine3() got multiple values for argument '{name}'"
+                        )))
+                    } else {
+                        Ok(Some(v))
+                    }
+                }
+                None => Ok(kwargs.swap_remove(name)),
+            };
+            let translation = take("translation")?;
+            let rotation = take("rotation")?;
+            if let Some(name) = kwargs.keys().next() {
+                return Err(vm.new_type_error(format!(
+                    "Affine3() got an unexpected keyword argument '{name}'"
+                )));
+            }
+            match (translation, rotation) {
+                (Some(t), Some(r)) => {
+                    let translation = extract_vec3(&t, vm)?;
+                    let rotation = extract_mat3(&r, vm)?;
                     Ok(Self(DAffine3::from_mat3_translation(rotation, translation)))
                 }
-                n => Err(vm.new_type_error(format!(
-                    "Affine3() takes 2 positional arguments (translation, rotation), got {n}"
-                ))),
+                _ => Err(vm.new_value_error(
+                    "Affine3 requires translation and rotation arguments".to_owned(),
+                )),
             }
         }
     }
@@ -388,6 +429,10 @@ mod rustpython_impl {
                 zelf.0.matrix3, zelf.0.translation
             ))
         }
+    }
+
+    impl PyDAffine3 {
+        pub(crate) const DATACLASS_FIELDS: &'static [&'static str] = &["matrix3", "translation"];
     }
 
     #[pyclass(with(Constructor, Representable, AsNumber, Comparable, Hashable))]
@@ -435,7 +480,18 @@ mod rustpython_impl {
         }
         #[pystaticmethod]
         fn from_numpy(obj: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            let rows = crate::glam_wrappers::extract_numpy_matrix_rp::<3, 4>(&obj, "Affine3", vm)?;
+            let arr: ndarray::ArrayD<f64> = rumpy::convert::obj_to_typed::<f64>(&obj, vm)?;
+            if arr.shape() != [3, 4] && arr.shape() != [4, 4] {
+                return Err(vm.new_value_error(
+                    "Affine3.from_numpy expected shape (3, 4) or (4, 4)".to_owned(),
+                ));
+            }
+            let mut rows = [[0.0; 4]; 3];
+            for (r, row) in rows.iter_mut().enumerate() {
+                for (c, val) in row.iter_mut().enumerate() {
+                    *val = arr[[r, c]];
+                }
+            }
             Ok(Self(DAffine3::from_cols_array_2d(
                 &crate::glam_wrappers::transpose_array2_rp(rows),
             )))
@@ -480,11 +536,11 @@ mod rustpython_impl {
         }
         #[pystaticmethod]
         fn just(component: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            if let Some(v) = component.downcast_ref::<PyDVec3>() {
-                return Ok(Self(DAffine3::from_translation(v.0)));
+            if let Ok(t) = extract_vec3(&component, vm) {
+                return Ok(Self(DAffine3::from_translation(t)));
             }
-            if let Some(m) = component.downcast_ref::<PyDMat3>() {
-                return Ok(Self(DAffine3::from_mat3(m.0)));
+            if let Ok(r) = extract_mat3(&component, vm) {
+                return Ok(Self(DAffine3::from_mat3(r)));
             }
             Err(vm.new_type_error("expected Vec3 or Mat3".to_owned()))
         }
@@ -622,6 +678,10 @@ mod rustpython_impl {
             let (s, r, t) = self.0.to_scale_rotation_translation();
             (PyDVec3(s), PyDQuat(r), PyDVec3(t))
         }
+        #[pymethod]
+        fn to_mat4(&self) -> PyDMat4 {
+            PyDMat4(glam::DMat4::from(self.0))
+        }
 
         #[pymethod]
         fn transform_point3(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<PyDVec3> {
@@ -683,8 +743,8 @@ mod rustpython_impl {
             crate::rp_serde::getnewargs_ex(&self.0, vm)
         }
         #[pygetset]
-        fn __dataclass_fields__(&self, vm: &VirtualMachine) -> PyObjectRef {
-            crate::rp_serde::dataclass_fields(&["matrix3", "translation"], vm)
+        fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::dataclass_dict(zelf.into(), Self::DATACLASS_FIELDS, vm)
         }
     }
 
@@ -760,3 +820,6 @@ mod rustpython_impl {
 
 #[cfg(feature = "rustpython-backend")]
 pub(crate) use rustpython_impl::install_constants;
+
+#[cfg(feature = "rustpython-backend")]
+pub(crate) use rustpython_impl::extract as extract_affine3;

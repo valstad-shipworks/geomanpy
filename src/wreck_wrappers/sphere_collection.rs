@@ -2,17 +2,27 @@
 
 use wreck::soa::SpheresSoA;
 
+#[cfg(not(feature = "rustpython-backend"))]
 #[cfg_attr(
     feature = "pyo3-backend",
     pyo3::pyclass(module = "geomanpy", from_py_object, name = "SphereCollection")
 )]
-#[cfg_attr(
-    feature = "rustpython-backend",
-    rustpython_vm::pyclass(module = "geomanpy", name = "SphereCollection")
-)]
-#[cfg_attr(feature = "rustpython-backend", derive(rustpython_vm::PyPayload))]
 #[derive(Debug, Clone)]
 pub struct PySphereCollection(pub SpheresSoA);
+
+#[cfg(feature = "rustpython-backend")]
+#[rustpython_vm::pyclass(module = "geomanpy", name = "SphereCollection")]
+#[derive(rustpython_vm::PyPayload, Debug)]
+pub struct PySphereCollection(pub rustpython_vm::common::lock::PyRwLock<SpheresSoA>);
+
+#[cfg(feature = "rustpython-backend")]
+impl Clone for PySphereCollection {
+    fn clone(&self) -> Self {
+        Self(rustpython_vm::common::lock::PyRwLock::new(
+            self.0.read().clone(),
+        ))
+    }
+}
 
 #[cfg(feature = "pyo3-backend")]
 mod pyo3_impl {
@@ -61,8 +71,13 @@ mod pyo3_impl {
         fn push(&mut self, sphere: PySphere) {
             self.0.push(sphere.0);
         }
-        fn get(&self, index: usize) -> PySphere {
-            PySphere(self.0.get(index))
+        fn get(&self, index: usize) -> PyResult<PySphere> {
+            if index >= self.0.len() {
+                return Err(pyo3::exceptions::PyIndexError::new_err(
+                    "index out of range",
+                ));
+            }
+            Ok(PySphere(self.0.get(index)))
         }
         fn clear(&mut self) {
             self.0.clear();
@@ -84,8 +99,9 @@ mod rustpython_impl {
     use super::*;
     use crate::wreck_wrappers::PySphere;
     use rustpython_vm::{
-        Py, PyObjectRef, PyResult, VirtualMachine,
+        Py, PyObjectRef, PyRef, PyResult, VirtualMachine,
         builtins::PyType,
+        common::lock::PyRwLock,
         function::FuncArgs,
         protocol::PyMappingMethods,
         pyclass,
@@ -97,27 +113,27 @@ mod rustpython_impl {
         type Args = FuncArgs;
         fn py_new(_cls: &Py<PyType>, args: FuncArgs, vm: &VirtualMachine) -> PyResult<Self> {
             if let Some(state) = crate::rp_serde::take_pickle_state(&args, vm)? {
-                return Ok(Self(
+                return Ok(Self(PyRwLock::new(
                     crate::pickle::pickle_decode_raw::<SpheresSoA>(&state)
                         .map_err(|e| vm.new_value_error(e))?,
-                ));
+                )));
             }
-            Ok(Self(SpheresSoA::new()))
+            Ok(Self(PyRwLock::new(SpheresSoA::new())))
         }
     }
     impl Representable for PySphereCollection {
         fn repr_str(zelf: &Py<Self>, _vm: &VirtualMachine) -> PyResult<String> {
-            Ok(format!("SphereCollection(len={})", zelf.0.len()))
+            Ok(format!("SphereCollection(len={})", zelf.0.read().len()))
         }
     }
     impl AsMapping for PySphereCollection {
         fn as_mapping() -> &'static PyMappingMethods {
             static M: PyMappingMethods = PyMappingMethods {
-                length: Some(|m, _vm| Ok(PySphereCollection::mapping_downcast(m).0.len())),
+                length: Some(|m, _vm| Ok(PySphereCollection::mapping_downcast(m).0.read().len())),
                 subscript: Some(|m, needle, vm| {
                     use rustpython_vm::PyPayload;
                     let z = PySphereCollection::mapping_downcast(m);
-                    let n = z.0.len() as isize;
+                    let n = z.0.read().len() as isize;
                     let i = <isize as rustpython_vm::TryFromObject>::try_from_object(
                         vm,
                         needle.to_owned(),
@@ -128,26 +144,30 @@ mod rustpython_impl {
                             vm.new_index_error("SphereCollection index out of range".to_owned())
                         );
                     }
-                    Ok(PySphere(z.0.get(idx as usize)).into_pyobject(vm))
+                    Ok(PySphere(z.0.read().get(idx as usize)).into_pyobject(vm))
                 }),
                 ..PyMappingMethods::NOT_IMPLEMENTED
             };
             &M
         }
     }
+    impl PySphereCollection {
+        pub(crate) const DATACLASS_FIELDS: &'static [&'static str] = &[];
+    }
+
     #[pyclass(with(Constructor, Representable, AsMapping))]
     impl PySphereCollection {
         #[pymethod]
         fn len(&self) -> usize {
-            self.0.len()
+            self.0.read().len()
         }
         #[pymethod]
         fn is_empty(&self) -> bool {
-            self.0.is_empty()
+            self.0.read().is_empty()
         }
         #[pystaticmethod]
         fn with_capacity(cap: usize) -> Self {
-            Self(SpheresSoA::with_capacity(cap))
+            Self(PyRwLock::new(SpheresSoA::with_capacity(cap)))
         }
         #[pystaticmethod]
         fn from_slice(spheres: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
@@ -160,38 +180,35 @@ mod rustpython_impl {
                         .ok_or_else(|| vm.new_type_error("expected Sphere".to_owned()))
                 })
                 .collect::<PyResult<_>>()?;
-            Ok(Self(SpheresSoA::from_slice(&inner)))
+            Ok(Self(PyRwLock::new(SpheresSoA::from_slice(&inner))))
         }
         /// Get the sphere at index `i`.
         #[pymethod]
         fn get(&self, i: usize, vm: &VirtualMachine) -> PyResult<PySphere> {
-            if i >= self.0.len() {
+            let inner = self.0.read();
+            if i >= inner.len() {
                 return Err(vm.new_index_error("index out of range".to_owned()));
             }
-            Ok(PySphere(self.0.get(i)))
+            Ok(PySphere(inner.get(i)))
         }
         #[pymethod]
         fn any_collides_sphere(&self, sphere: PyObjectRef, vm: &VirtualMachine) -> PyResult<bool> {
             let s = sphere
                 .downcast_ref::<PySphere>()
                 .ok_or_else(|| vm.new_type_error("expected Sphere".to_owned()))?;
-            Ok(self.0.any_collides_sphere(&s.0))
+            Ok(self.0.read().any_collides_sphere(&s.0))
         }
-        /// Append a sphere, returning the new collection (RustPython methods
-        /// only borrow `&self`, so this does not mutate in place).
         #[pymethod]
-        fn push(&self, sphere: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+        fn push(&self, sphere: PyObjectRef, vm: &VirtualMachine) -> PyResult<()> {
             let s = sphere
                 .downcast_ref::<PySphere>()
                 .ok_or_else(|| vm.new_type_error("expected Sphere".to_owned()))?;
-            let mut out = self.0.clone();
-            out.push(s.0);
-            Ok(Self(out))
+            self.0.write().push(s.0);
+            Ok(())
         }
-        /// Return a new empty collection.
         #[pymethod]
-        fn clear(&self) -> Self {
-            Self(SpheresSoA::new())
+        fn clear(&self) {
+            self.0.write().clear();
         }
         #[pymethod]
         fn abs_diff_eq(
@@ -203,19 +220,27 @@ mod rustpython_impl {
             let o = other
                 .downcast_ref::<PySphereCollection>()
                 .ok_or_else(|| vm.new_type_error("expected SphereCollection".to_owned()))?;
+            let lhs = self.0.read();
+            if std::ptr::eq(&self.0, &o.0) {
+                return Ok(approx::AbsDiffEq::abs_diff_eq(
+                    &*lhs,
+                    &*lhs,
+                    max_abs_diff as f32,
+                ));
+            }
             Ok(approx::AbsDiffEq::abs_diff_eq(
-                &self.0,
-                &o.0,
+                &*lhs,
+                &*o.0.read(),
                 max_abs_diff as f32,
             ))
         }
         #[pymethod]
         fn __getnewargs_ex__(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            crate::rp_serde::getnewargs_ex(&self.0, vm)
+            crate::rp_serde::getnewargs_ex(&*self.0.read(), vm)
         }
         #[pygetset]
-        fn __dataclass_fields__(&self, vm: &VirtualMachine) -> PyObjectRef {
-            crate::rp_serde::dataclass_fields(&[], vm)
+        fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::dataclass_dict(zelf.into(), Self::DATACLASS_FIELDS, vm)
         }
     }
 }

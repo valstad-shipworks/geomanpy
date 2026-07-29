@@ -24,125 +24,280 @@ pub(crate) mod geomanpy_module {
     fn vec2_type(vm: &VirtualMachine) -> PyTypeRef {
         let t = crate::glam_wrappers::PyDVec2::make_static_type();
         crate::glam_wrappers::vec2::install_constants(&t, vm);
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::glam_wrappers::PyDVec2::DATACLASS_FIELDS,
+            vm,
+        );
         t
     }
     #[pyattr(name = "Vec3")]
     fn vec3_type(vm: &VirtualMachine) -> PyTypeRef {
         let t = crate::glam_wrappers::PyDVec3::make_static_type();
         crate::glam_wrappers::vec3::install_constants(&t, vm);
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::glam_wrappers::PyDVec3::DATACLASS_FIELDS,
+            vm,
+        );
         t
     }
     #[pyattr(name = "Vec4")]
     fn vec4_type(vm: &VirtualMachine) -> PyTypeRef {
         let t = crate::glam_wrappers::PyDVec4::make_static_type();
         crate::glam_wrappers::vec4::install_constants(&t, vm);
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::glam_wrappers::PyDVec4::DATACLASS_FIELDS,
+            vm,
+        );
         t
     }
     #[pyattr(name = "Quat")]
     fn quat_type(vm: &VirtualMachine) -> PyTypeRef {
         let t = crate::glam_wrappers::PyDQuat::make_static_type();
         crate::glam_wrappers::quat::install_constants(&t, vm);
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::glam_wrappers::PyDQuat::DATACLASS_FIELDS,
+            vm,
+        );
         t
     }
     #[pyattr(name = "Mat3")]
     fn mat3_type(vm: &VirtualMachine) -> PyTypeRef {
         let t = crate::glam_wrappers::PyDMat3::make_static_type();
         crate::glam_wrappers::mat3::install_constants(&t, vm);
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::glam_wrappers::PyDMat3::DATACLASS_FIELDS,
+            vm,
+        );
         t
     }
     #[pyattr(name = "Mat4")]
     fn mat4_type(vm: &VirtualMachine) -> PyTypeRef {
         let t = crate::glam_wrappers::PyDMat4::make_static_type();
         crate::glam_wrappers::mat4::install_constants(&t, vm);
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::glam_wrappers::PyDMat4::DATACLASS_FIELDS,
+            vm,
+        );
         t
     }
     #[pyattr(name = "Affine3")]
     fn affine3_type(vm: &VirtualMachine) -> PyTypeRef {
         let t = crate::glam_wrappers::PyDAffine3::make_static_type();
         crate::glam_wrappers::affine3::install_constants(&t, vm);
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::glam_wrappers::PyDAffine3::DATACLASS_FIELDS,
+            vm,
+        );
         t
     }
 
     #[pyattr(name = "Sphere")]
-    fn sphere_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::wreck_wrappers::PySphere::make_static_type()
+    fn sphere_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::wreck_wrappers::PySphere::make_static_type();
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::wreck_wrappers::PySphere::DATACLASS_FIELDS,
+            vm,
+        );
+        t
     }
     #[pyattr(name = "Capsule")]
-    fn capsule_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::wreck_wrappers::PyCapsule::make_static_type()
+    fn capsule_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::wreck_wrappers::PyCapsule::make_static_type();
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::wreck_wrappers::PyCapsule::DATACLASS_FIELDS,
+            vm,
+        );
+        t
     }
     #[pyattr(name = "Cuboid")]
-    fn cuboid_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::wreck_wrappers::PyCuboid::make_static_type()
+    fn cuboid_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::wreck_wrappers::PyCuboid::make_static_type();
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::wreck_wrappers::PyCuboid::DATACLASS_FIELDS,
+            vm,
+        );
+        t
     }
     #[pyattr(name = "Cylinder")]
-    fn cylinder_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::wreck_wrappers::PyCylinder::make_static_type()
+    fn cylinder_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::wreck_wrappers::PyCylinder::make_static_type();
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::wreck_wrappers::PyCylinder::DATACLASS_FIELDS,
+            vm,
+        );
+        t
     }
     #[pyattr(name = "ConvexPolytope")]
-    fn convex_polytope_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::wreck_wrappers::PyConvexPolytope::make_static_type()
+    fn convex_polytope_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::wreck_wrappers::PyConvexPolytope::make_static_type();
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::wreck_wrappers::PyConvexPolytope::DATACLASS_FIELDS,
+            vm,
+        );
+        t
     }
     #[pyattr(name = "ConvexPolygon")]
-    fn convex_polygon_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::wreck_wrappers::PyConvexPolygon::make_static_type()
+    fn convex_polygon_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::wreck_wrappers::PyConvexPolygon::make_static_type();
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::wreck_wrappers::PyConvexPolygon::DATACLASS_FIELDS,
+            vm,
+        );
+        t
     }
     #[pyattr(name = "Line")]
-    fn line_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::wreck_wrappers::PyLine::make_static_type()
+    fn line_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::wreck_wrappers::PyLine::make_static_type();
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::wreck_wrappers::PyLine::DATACLASS_FIELDS,
+            vm,
+        );
+        t
     }
     #[pyattr(name = "Ray")]
-    fn ray_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::wreck_wrappers::PyRay::make_static_type()
+    fn ray_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::wreck_wrappers::PyRay::make_static_type();
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::wreck_wrappers::PyRay::DATACLASS_FIELDS,
+            vm,
+        );
+        t
     }
     #[pyattr(name = "LineSegment")]
-    fn line_segment_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::wreck_wrappers::PyLineSegment::make_static_type()
+    fn line_segment_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::wreck_wrappers::PyLineSegment::make_static_type();
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::wreck_wrappers::PyLineSegment::DATACLASS_FIELDS,
+            vm,
+        );
+        t
     }
     #[pyattr(name = "Plane")]
-    fn plane_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::wreck_wrappers::PyPlane::make_static_type()
+    fn plane_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::wreck_wrappers::PyPlane::make_static_type();
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::wreck_wrappers::PyPlane::DATACLASS_FIELDS,
+            vm,
+        );
+        t
     }
     #[pyattr(name = "Pointcloud")]
-    fn pointcloud_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::wreck_wrappers::PyPointcloud::make_static_type()
+    fn pointcloud_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::wreck_wrappers::PyPointcloud::make_static_type();
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::wreck_wrappers::PyPointcloud::DATACLASS_FIELDS,
+            vm,
+        );
+        t
     }
     #[pyattr(name = "SphereCollection")]
-    fn sphere_collection_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::wreck_wrappers::PySphereCollection::make_static_type()
+    fn sphere_collection_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::wreck_wrappers::PySphereCollection::make_static_type();
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::wreck_wrappers::PySphereCollection::DATACLASS_FIELDS,
+            vm,
+        );
+        t
     }
     #[pyattr(name = "Collider")]
-    fn collider_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::wreck_wrappers::PyCollider::make_static_type()
+    fn collider_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::wreck_wrappers::PyCollider::make_static_type();
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::wreck_wrappers::PyCollider::DATACLASS_FIELDS,
+            vm,
+        );
+        t
     }
     #[pyattr(name = "Shape")]
-    fn shape_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::wreck_wrappers::PyShape::make_static_type()
+    fn shape_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::wreck_wrappers::PyShape::make_static_type();
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::wreck_wrappers::PyShape::DATACLASS_FIELDS,
+            vm,
+        );
+        t
     }
 
     #[pyattr(name = "Interval")]
-    fn interval_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::squiggle_wrappers::PyInterval::make_static_type()
+    fn interval_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::squiggle_wrappers::PyInterval::make_static_type();
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::squiggle_wrappers::PyInterval::DATACLASS_FIELDS,
+            vm,
+        );
+        t
     }
     #[pyattr(name = "Nearest")]
-    fn nearest_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::squiggle_wrappers::PyNearest::make_static_type()
+    fn nearest_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::squiggle_wrappers::PyNearest::make_static_type();
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::squiggle_wrappers::PyNearest::DATACLASS_FIELDS,
+            vm,
+        );
+        t
     }
     #[pyattr(name = "QuadraticBezier")]
-    fn quadratic_bezier_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::squiggle_wrappers::PyQuadraticBezier::make_static_type()
+    fn quadratic_bezier_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::squiggle_wrappers::PyQuadraticBezier::make_static_type();
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::squiggle_wrappers::PyQuadraticBezier::DATACLASS_FIELDS,
+            vm,
+        );
+        t
     }
     #[pyattr(name = "CubicBezier")]
-    fn cubic_bezier_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::squiggle_wrappers::PyCubicBezier::make_static_type()
+    fn cubic_bezier_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::squiggle_wrappers::PyCubicBezier::make_static_type();
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::squiggle_wrappers::PyCubicBezier::DATACLASS_FIELDS,
+            vm,
+        );
+        t
     }
     #[pyattr(name = "Polyline")]
-    fn polyline_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::squiggle_wrappers::PyPolyline::make_static_type()
+    fn polyline_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::squiggle_wrappers::PyPolyline::make_static_type();
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::squiggle_wrappers::PyPolyline::DATACLASS_FIELDS,
+            vm,
+        );
+        t
     }
     #[pyattr(name = "Spline")]
-    fn spline_type(_vm: &VirtualMachine) -> PyTypeRef {
-        crate::squiggle_wrappers::PySpline::make_static_type()
+    fn spline_type(vm: &VirtualMachine) -> PyTypeRef {
+        let t = crate::squiggle_wrappers::PySpline::make_static_type();
+        crate::rp_serde::install_dataclass_fields(
+            &t,
+            crate::squiggle_wrappers::PySpline::DATACLASS_FIELDS,
+            vm,
+        );
+        t
     }
 
     // Domain-name aliases, mirroring the pure-Python facade in

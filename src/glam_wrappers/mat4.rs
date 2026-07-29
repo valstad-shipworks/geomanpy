@@ -37,8 +37,8 @@ impl From<PyDMat4> for DMat4 {
 mod pyo3_impl {
     use super::*;
     use crate::glam_wrappers::{
-        PyDMat3, PyDQuat, PyDVec3, PyDVec4, PyEulerRot, array2_from_rows, extract_numpy_matrix,
-        transpose_array2,
+        PyDAffine3, PyDMat3, PyDQuat, PyDVec3, PyDVec4, PyEulerRot, array2_from_rows,
+        extract_numpy_matrix, transpose_array2,
     };
     use crate::pickle::pickle_decode;
     use crate::{impl_dataclass_fields, impl_getnewargs_ex};
@@ -143,6 +143,11 @@ mod pyo3_impl {
         #[inline]
         fn from_mat3_translation(mat3: PyDMat3, translation: PyDVec3) -> Self {
             Self(DMat4::from_mat3_translation(mat3.0, translation.0))
+        }
+        #[staticmethod]
+        #[inline]
+        fn from_affine3(a: PyDAffine3) -> Self {
+            Self(DMat4::from(a.0))
         }
         #[staticmethod]
         #[inline]
@@ -436,6 +441,10 @@ mod pyo3_impl {
             (PyDVec3(s), PyDQuat(r), PyDVec3(t))
         }
         #[inline]
+        fn to_affine3(&self) -> PyDAffine3 {
+            PyDAffine3(glam::DAffine3::from_mat4(self.0))
+        }
+        #[inline]
         fn to_euler(&self, order: PyEulerRot) -> (f64, f64, f64) {
             self.0.to_euler(order.into())
         }
@@ -632,8 +641,8 @@ mod pyo3_impl {
 mod rustpython_impl {
     use super::*;
     use crate::glam_wrappers::{
-        PyDMat3, PyDQuat, PyDVec3, PyDVec4, PyEulerRot, quat::extract_quat, vec3::extract_vec3,
-        vec4::extract_vec4,
+        PyDAffine3, PyDMat3, PyDQuat, PyDVec3, PyDVec4, PyEulerRot, affine3::extract_affine3,
+        quat::extract_quat, vec3::extract_vec3, vec4::extract_vec4,
     };
 
     fn extract_mat3(obj: &PyObjectRef, vm: &VirtualMachine) -> PyResult<glam::DMat3> {
@@ -649,7 +658,7 @@ mod rustpython_impl {
         }
     }
     use rustpython_vm::{
-        Py, PyObject, PyObjectRef, PyPayload, PyResult, TryFromObject, VirtualMachine,
+        Py, PyObject, PyObjectRef, PyPayload, PyRef, PyResult, TryFromObject, VirtualMachine,
         builtins::PyType,
         function::{FuncArgs, PyComparisonValue},
         protocol::PyNumberMethods,
@@ -666,20 +675,36 @@ mod rustpython_impl {
                         .map_err(|e| vm.new_value_error(e))?,
                 ));
             }
-            if args.args.is_empty() {
-                return Ok(Self(DMat4::IDENTITY));
+            if args.args.len() > 4 {
+                return Err(vm.new_type_error(format!(
+                    "Mat4() takes at most 4 positional arguments, got {}",
+                    args.args.len()
+                )));
             }
-            if args.args.len() == 4 {
-                let x = extract_vec4(&args.args[0], vm)?;
-                let y = extract_vec4(&args.args[1], vm)?;
-                let z = extract_vec4(&args.args[2], vm)?;
-                let w = extract_vec4(&args.args[3], vm)?;
-                return Ok(Self(DMat4::from_cols(x, y, z, w)));
+            let names = ["x_axis", "y_axis", "z_axis", "w_axis"];
+            let mut axes = [None; 4];
+            for (slot, obj) in axes.iter_mut().zip(&args.args) {
+                *slot = Some(extract_vec4(obj, vm)?);
             }
-            Err(vm.new_type_error(format!(
-                "Mat4() takes 0 or 4 positional arguments, got {}",
-                args.args.len()
-            )))
+            for (name, obj) in &args.kwargs {
+                let Some(i) = names.iter().position(|&n| n == name.as_str()) else {
+                    return Err(vm.new_type_error(format!(
+                        "Mat4() got an unexpected keyword argument '{name}'"
+                    )));
+                };
+                if axes[i].is_some() {
+                    return Err(vm.new_type_error(format!(
+                        "Mat4() got multiple values for argument '{name}'"
+                    )));
+                }
+                axes[i] = Some(extract_vec4(obj, vm)?);
+            }
+            match axes {
+                [Some(x), Some(y), Some(z), Some(w)] => Ok(Self(DMat4::from_cols(x, y, z, w))),
+                _ => Err(vm.new_value_error(
+                    "Mat4 requires x_axis, y_axis, z_axis, w_axis arguments".to_owned(),
+                )),
+            }
         }
     }
 
@@ -707,6 +732,11 @@ mod rustpython_impl {
                 c[3][3],
             ))
         }
+    }
+
+    impl PyDMat4 {
+        pub(crate) const DATACLASS_FIELDS: &'static [&'static str] =
+            &["x_axis", "y_axis", "z_axis", "w_axis"];
     }
 
     #[pyclass(with(Constructor, Representable, AsNumber, Comparable, Hashable))]
@@ -813,6 +843,10 @@ mod rustpython_impl {
                 extract_mat3(&mat3, vm)?,
                 extract_vec3(&translation, vm)?,
             )))
+        }
+        #[pystaticmethod]
+        fn from_affine3(a: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(DMat4::from(extract_affine3(&a, vm)?)))
         }
         #[pystaticmethod]
         fn from_translation(translation: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
@@ -1134,6 +1168,10 @@ mod rustpython_impl {
             (PyDVec3(s), PyDQuat(r), PyDVec3(t))
         }
         #[pymethod]
+        fn to_affine3(&self) -> PyDAffine3 {
+            PyDAffine3(glam::DAffine3::from_mat4(self.0))
+        }
+        #[pymethod]
         fn to_euler(&self, order: PyObjectRef, vm: &VirtualMachine) -> PyResult<(f64, f64, f64)> {
             Ok(self.0.to_euler(extract_euler(&order, vm)?))
         }
@@ -1226,8 +1264,8 @@ mod rustpython_impl {
             crate::rp_serde::getnewargs_ex(&self.0, vm)
         }
         #[pygetset]
-        fn __dataclass_fields__(&self, vm: &VirtualMachine) -> PyObjectRef {
-            crate::rp_serde::dataclass_fields(&["x_axis", "y_axis", "z_axis", "w_axis"], vm)
+        fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::dataclass_dict(zelf.into(), Self::DATACLASS_FIELDS, vm)
         }
     }
 

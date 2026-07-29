@@ -8,6 +8,12 @@ requires-python = ">=3.10"
 readme = "README.md"
 dynamic = ["version"]
 
+[tool.ruff.lint.per-file-ignores]
+# BLE001: the test harness catches Exception to collect failures.
+# SIM201: `not (a == b)` exercises __eq__ directly; __ne__ is asserted separately.
+# B023: loop-variable lambdas are invoked immediately within the iteration.
+"tests/*" = ["B023", "BLE001", "SIM201"]
+
 [tool.maturin]
 features = ["pyo3/extension-module", "pyo3-backend", "not_build_only"]
 bindings = "pyo3"

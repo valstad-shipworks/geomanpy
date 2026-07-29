@@ -98,7 +98,7 @@ mod pyo3_impl {
 mod rustpython_impl {
     use super::*;
     use rustpython_vm::{
-        Py, PyObjectRef, PyResult, VirtualMachine,
+        Py, PyObjectRef, PyRef, PyResult, VirtualMachine,
         builtins::PyType,
         function::FuncArgs,
         pyclass,
@@ -128,6 +128,10 @@ mod rustpython_impl {
         }
     }
     use rustpython_vm::TryFromObject;
+
+    impl PyInterval {
+        pub(crate) const DATACLASS_FIELDS: &'static [&'static str] = &["min", "max"];
+    }
 
     #[pyclass(with(Constructor, Representable))]
     impl PyInterval {
@@ -188,8 +192,8 @@ mod rustpython_impl {
             crate::rp_serde::getnewargs_ex(&self.0, vm)
         }
         #[pygetset]
-        fn __dataclass_fields__(&self, vm: &VirtualMachine) -> rustpython_vm::PyObjectRef {
-            crate::rp_serde::dataclass_fields(&["min", "max"], vm)
+        fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::dataclass_dict(zelf.into(), Self::DATACLASS_FIELDS, vm)
         }
     }
 }

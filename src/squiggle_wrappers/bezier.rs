@@ -185,7 +185,7 @@ mod rustpython_impl {
     use crate::squiggle_wrappers::{PyInterval, PyNearest, vp};
     use crate::wreck_wrappers::rustpython_glue::{dv3, extract_affine3, extract_mat3};
     use rustpython_vm::{
-        Py, PyObjectRef, PyPayload, PyResult, VirtualMachine,
+        Py, PyObjectRef, PyPayload, PyRef, PyResult, VirtualMachine,
         builtins::PyType,
         function::FuncArgs,
         pyclass,
@@ -245,6 +245,10 @@ mod rustpython_impl {
         fn repr_str(_zelf: &Py<Self>, _vm: &VirtualMachine) -> PyResult<String> {
             Ok("CubicBezier(4 points)".to_owned())
         }
+    }
+
+    impl PyQuadraticBezier {
+        pub(crate) const DATACLASS_FIELDS: &'static [&'static str] = &["points"];
     }
 
     #[pyclass(with(Constructor, Representable))]
@@ -428,9 +432,13 @@ mod rustpython_impl {
             crate::rp_serde::getnewargs_ex(&self.0, vm)
         }
         #[pygetset]
-        fn __dataclass_fields__(&self, vm: &VirtualMachine) -> PyObjectRef {
-            crate::rp_serde::dataclass_fields(&["points"], vm)
+        fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::dataclass_dict(zelf.into(), Self::DATACLASS_FIELDS, vm)
         }
+    }
+
+    impl PyCubicBezier {
+        pub(crate) const DATACLASS_FIELDS: &'static [&'static str] = &["points"];
     }
 
     #[pyclass(with(Constructor, Representable))]
@@ -614,8 +622,8 @@ mod rustpython_impl {
             crate::rp_serde::getnewargs_ex(&self.0, vm)
         }
         #[pygetset]
-        fn __dataclass_fields__(&self, vm: &VirtualMachine) -> PyObjectRef {
-            crate::rp_serde::dataclass_fields(&["points"], vm)
+        fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::dataclass_dict(zelf.into(), Self::DATACLASS_FIELDS, vm)
         }
     }
 }

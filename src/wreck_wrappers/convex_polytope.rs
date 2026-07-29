@@ -88,10 +88,6 @@ mod pyo3_impl {
                 .map(|v| [v.x as f64, v.y as f64, v.z as f64])
                 .collect()
         }
-        #[getter]
-        fn get_obb(&self) -> PyCuboid {
-            PyCuboid(self.0.obb)
-        }
         fn stretch(&self, translation: PyDVec3) -> Vec<AnyShape> {
             vec![AnyShape::ConvexPolytope(PyConvexPolytope(
                 self.0.stretch(dv3(translation)),
@@ -121,14 +117,48 @@ mod rustpython_impl {
         dv3, extract_affine3, extract_mat3, shape_collides,
     };
     use crate::wreck_wrappers::{PyCuboid, PySphere};
+    use glam::Vec3;
     use rustpython_vm::{
-        Py, PyObjectRef, PyPayload, PyResult, VirtualMachine,
+        Py, PyObjectRef, PyPayload, PyRef, PyResult, VirtualMachine,
         builtins::PyType,
         function::{FuncArgs, OptionalArg},
         pyclass,
         types::{Constructor, Representable},
     };
     use wreck::{Scalable, Stretchable, Transformable};
+
+    fn extract_planes(obj: &PyObjectRef, vm: &VirtualMachine) -> PyResult<Vec<(Vec3, f32)>> {
+        let pairs: Vec<Vec<PyObjectRef>> = obj.try_to_value(vm)?;
+        pairs
+            .into_iter()
+            .map(|pair| {
+                if pair.len() != 2 {
+                    return Err(vm.new_type_error(
+                        "each plane must be a (normal, distance) pair".to_owned(),
+                    ));
+                }
+                let n: Vec<f64> = pair[0].try_to_value(vm)?;
+                if n.len() != 3 {
+                    return Err(vm.new_type_error("plane normal must have 3 components".to_owned()));
+                }
+                let d = pair[1].try_float(vm)?.to_f64();
+                Ok((Vec3::new(n[0] as f32, n[1] as f32, n[2] as f32), d as f32))
+            })
+            .collect()
+    }
+
+    fn extract_vertices(obj: &PyObjectRef, vm: &VirtualMachine) -> PyResult<Vec<Vec3>> {
+        let verts: Vec<Vec<f64>> = obj.try_to_value(vm)?;
+        verts
+            .into_iter()
+            .map(|v| {
+                if v.len() != 3 {
+                    return Err(vm.new_type_error("each vertex must have 3 components".to_owned()));
+                }
+                Ok(Vec3::new(v[0] as f32, v[1] as f32, v[2] as f32))
+            })
+            .collect()
+    }
 
     impl Constructor for PyConvexPolytope {
         type Args = FuncArgs;
@@ -139,7 +169,40 @@ mod rustpython_impl {
                         .map_err(|e| vm.new_value_error(e))?,
                 ));
             }
-            Ok(Self(ConvexPolytope::new(Vec::new(), Vec::new())))
+            if args.args.len() > 2 {
+                return Err(vm.new_type_error(
+                    "ConvexPolytope() takes at most 2 positional arguments".to_owned(),
+                ));
+            }
+            let mut positional = args.args.into_iter();
+            let mut planes = positional.next();
+            let mut vertices = positional.next();
+            for (name, value) in args.kwargs {
+                let slot = match name.as_str() {
+                    "planes" => &mut planes,
+                    "vertices" => &mut vertices,
+                    _ => {
+                        return Err(vm.new_type_error(format!(
+                            "ConvexPolytope() got an unexpected keyword argument '{name}'"
+                        )));
+                    }
+                };
+                if slot.is_some() {
+                    return Err(vm.new_type_error(format!(
+                        "ConvexPolytope() got multiple values for argument '{name}'"
+                    )));
+                }
+                *slot = Some(value);
+            }
+            match (planes, vertices) {
+                (Some(planes), Some(vertices)) => Ok(Self(ConvexPolytope::new(
+                    extract_planes(&planes, vm)?,
+                    extract_vertices(&vertices, vm)?,
+                ))),
+                _ => Err(vm.new_value_error(
+                    "ConvexPolytope requires planes, vertices arguments".to_owned(),
+                )),
+            }
         }
     }
     impl Representable for PyConvexPolytope {
@@ -147,13 +210,33 @@ mod rustpython_impl {
             Ok(zelf.0.to_string())
         }
     }
+    impl PyConvexPolytope {
+        pub(crate) const DATACLASS_FIELDS: &'static [&'static str] = &["planes", "vertices"];
+    }
+
     #[pyclass(with(Constructor, Representable))]
     impl PyConvexPolytope {
-        #[pygetset]
+        #[pystaticmethod]
+        fn with_obb(
+            planes: PyObjectRef,
+            vertices: PyObjectRef,
+            obb: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<Self> {
+            let obb = obb
+                .downcast_ref::<PyCuboid>()
+                .ok_or_else(|| vm.new_type_error("expected Cuboid".to_owned()))?;
+            Ok(Self(ConvexPolytope::with_obb(
+                extract_planes(&planes, vm)?,
+                extract_vertices(&vertices, vm)?,
+                obb.0,
+            )))
+        }
+        #[pymethod]
         fn obb(&self) -> PyCuboid {
             PyCuboid(self.0.obb)
         }
-        #[pymethod]
+        #[pygetset]
         fn vertices(&self, vm: &VirtualMachine) -> PyObjectRef {
             let items: Vec<PyObjectRef> = self
                 .0
@@ -161,7 +244,7 @@ mod rustpython_impl {
                 .iter()
                 .map(|v| {
                     vm.ctx
-                        .new_tuple(vec![
+                        .new_list(vec![
                             vm.ctx.new_float(v.x as f64).into(),
                             vm.ctx.new_float(v.y as f64).into(),
                             vm.ctx.new_float(v.z as f64).into(),
@@ -171,7 +254,7 @@ mod rustpython_impl {
                 .collect();
             vm.ctx.new_list(items).into()
         }
-        #[pymethod]
+        #[pygetset]
         fn planes(&self, vm: &VirtualMachine) -> PyObjectRef {
             let items: Vec<PyObjectRef> = self
                 .0
@@ -181,7 +264,7 @@ mod rustpython_impl {
                     vm.ctx
                         .new_tuple(vec![
                             vm.ctx
-                                .new_tuple(vec![
+                                .new_list(vec![
                                     vm.ctx.new_float(n.x as f64).into(),
                                     vm.ctx.new_float(n.y as f64).into(),
                                     vm.ctx.new_float(n.z as f64).into(),
@@ -272,8 +355,8 @@ mod rustpython_impl {
             crate::rp_serde::getnewargs_ex(&self.0, vm)
         }
         #[pygetset]
-        fn __dataclass_fields__(&self, vm: &VirtualMachine) -> PyObjectRef {
-            crate::rp_serde::dataclass_fields(&["planes", "vertices"], vm)
+        fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::dataclass_dict(zelf.into(), Self::DATACLASS_FIELDS, vm)
         }
     }
 }

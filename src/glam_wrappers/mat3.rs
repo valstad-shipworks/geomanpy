@@ -456,7 +456,7 @@ mod rustpython_impl {
         PyDVec2, PyDVec3, PyEulerRot, quat::extract_quat, vec2::extract_vec2, vec3::extract_vec3,
     };
     use rustpython_vm::{
-        Py, PyObject, PyObjectRef, PyPayload, PyResult, TryFromObject, VirtualMachine,
+        Py, PyObject, PyObjectRef, PyPayload, PyRef, PyResult, TryFromObject, VirtualMachine,
         builtins::PyType,
         function::{FuncArgs, PyComparisonValue},
         pyclass,
@@ -478,19 +478,40 @@ mod rustpython_impl {
                         .map_err(|e| vm.new_value_error(e))?,
                 ));
             }
-            if args.args.is_empty() {
-                return Ok(Self(DMat3::IDENTITY));
+            if args.args.len() > 3 {
+                return Err(vm.new_type_error(format!(
+                    "Mat3() takes at most 3 positional arguments, got {}",
+                    args.args.len()
+                )));
             }
-            if args.args.len() == 3 {
-                let x = extract_vec3(&args.args[0], vm)?;
-                let y = extract_vec3(&args.args[1], vm)?;
-                let z = extract_vec3(&args.args[2], vm)?;
-                return Ok(Self(DMat3::from_cols(x, y, z)));
+            let mut kwargs = args.kwargs;
+            let mut axes = [None; 3];
+            for (i, name) in ["x_axis", "y_axis", "z_axis"].iter().enumerate() {
+                let from_kwarg = kwargs.swap_remove(*name);
+                axes[i] = if let Some(obj) = args.args.get(i) {
+                    if from_kwarg.is_some() {
+                        return Err(vm.new_type_error(format!(
+                            "Mat3() got multiple values for argument '{name}'"
+                        )));
+                    }
+                    Some(extract_vec3(obj, vm)?)
+                } else if let Some(obj) = from_kwarg {
+                    Some(extract_vec3(&obj, vm)?)
+                } else {
+                    None
+                };
             }
-            Err(vm.new_type_error(format!(
-                "Mat3() takes 0 or 3 positional arguments, got {}",
-                args.args.len()
-            )))
+            if let Some(name) = kwargs.keys().next() {
+                return Err(vm.new_type_error(format!(
+                    "Mat3() got an unexpected keyword argument '{name}'"
+                )));
+            }
+            match axes {
+                [Some(x), Some(y), Some(z)] => Ok(Self(DMat3::from_cols(x, y, z))),
+                _ => Err(
+                    vm.new_value_error("Mat3 requires x_axis, y_axis, z_axis arguments".to_owned())
+                ),
+            }
         }
     }
 
@@ -511,6 +532,11 @@ mod rustpython_impl {
                 m.z_axis.z,
             ))
         }
+    }
+
+    impl PyDMat3 {
+        pub(crate) const DATACLASS_FIELDS: &'static [&'static str] =
+            &["x_axis", "y_axis", "z_axis"];
     }
 
     #[pyclass(with(Constructor, Representable, AsNumber, Comparable, Hashable))]
@@ -871,8 +897,8 @@ mod rustpython_impl {
             crate::rp_serde::getnewargs_ex(&self.0, vm)
         }
         #[pygetset]
-        fn __dataclass_fields__(&self, vm: &VirtualMachine) -> PyObjectRef {
-            crate::rp_serde::dataclass_fields(&["x_axis", "y_axis", "z_axis"], vm)
+        fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::dataclass_dict(zelf.into(), Self::DATACLASS_FIELDS, vm)
         }
     }
 

@@ -82,7 +82,7 @@ mod rustpython_impl {
     use crate::wreck_wrappers::PyLineSegment;
     use crate::wreck_wrappers::rustpython_glue::{dv3, extract_affine3, extract_mat3};
     use rustpython_vm::{
-        Py, PyObjectRef, PyPayload, PyResult, VirtualMachine,
+        Py, PyObjectRef, PyPayload, PyRef, PyResult, VirtualMachine,
         builtins::PyType,
         function::FuncArgs,
         pyclass,
@@ -91,17 +91,38 @@ mod rustpython_impl {
 
     impl Constructor for PyPolyline {
         type Args = FuncArgs;
-        fn py_new(_cls: &Py<PyType>, args: FuncArgs, vm: &VirtualMachine) -> PyResult<Self> {
+        fn py_new(_cls: &Py<PyType>, mut args: FuncArgs, vm: &VirtualMachine) -> PyResult<Self> {
             if let Some(state) = crate::rp_serde::take_pickle_state(&args, vm)? {
                 return Ok(Self(
                     crate::pickle::pickle_decode_raw::<Polyline>(&state)
                         .map_err(|e| vm.new_value_error(e))?,
                 ));
             }
-            let points = if args.args.is_empty() {
-                Vec::new()
-            } else {
-                vm.extract_elements_with(&args.args[0], |o| Ok(dv3(extract_vec3(&o, vm)?)))?
+            if args.args.len() > 1 {
+                return Err(vm.new_type_error(format!(
+                    "Polyline() takes 1 positional argument but {} were given",
+                    args.args.len()
+                )));
+            }
+            let mut points_obj = args.args.pop();
+            if let Some(val) = args.kwargs.swap_remove("points") {
+                if points_obj.is_some() {
+                    return Err(vm.new_type_error(
+                        "Polyline() got multiple values for argument 'points'".to_owned(),
+                    ));
+                }
+                points_obj = Some(val);
+            }
+            if let Some(name) = args.kwargs.keys().next() {
+                return Err(vm.new_type_error(format!(
+                    "Polyline() got an unexpected keyword argument '{name}'"
+                )));
+            }
+            let points = match points_obj {
+                Some(obj) if !vm.is_none(&obj) => {
+                    vm.extract_elements_with(&obj, |o| Ok(dv3(extract_vec3(&o, vm)?)))?
+                }
+                _ => Vec::new(),
             };
             Ok(Self(Polyline::new(points)))
         }
@@ -110,6 +131,10 @@ mod rustpython_impl {
         fn repr_str(zelf: &Py<Self>, _vm: &VirtualMachine) -> PyResult<String> {
             Ok(format!("Polyline(points={})", zelf.0.points.len()))
         }
+    }
+
+    impl PyPolyline {
+        pub(crate) const DATACLASS_FIELDS: &'static [&'static str] = &["points"];
     }
 
     #[pyclass(with(Constructor, Representable))]
@@ -183,8 +208,8 @@ mod rustpython_impl {
             crate::squiggle_wrappers::length(&self.0)
         }
         #[pymethod]
-        fn aabb(&self) -> crate::wreck_wrappers::PyCuboid {
-            crate::squiggle_wrappers::aabb(&self.0)
+        fn aabb(&self, vm: &VirtualMachine) -> PyResult<crate::wreck_wrappers::PyCuboid> {
+            crate::squiggle_wrappers::try_aabb(&self.0).map_err(|e| vm.new_value_error(e))
         }
         #[pymethod]
         fn nearest(&self, query: PyObjectRef, vm: &VirtualMachine) -> PyResult<PyNearest> {
@@ -297,8 +322,8 @@ mod rustpython_impl {
             crate::rp_serde::getnewargs_ex(&self.0, vm)
         }
         #[pygetset]
-        fn __dataclass_fields__(&self, vm: &VirtualMachine) -> PyObjectRef {
-            crate::rp_serde::dataclass_fields(&["points"], vm)
+        fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::dataclass_dict(zelf.into(), Self::DATACLASS_FIELDS, vm)
         }
     }
 }

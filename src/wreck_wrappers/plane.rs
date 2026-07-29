@@ -75,7 +75,7 @@ mod rustpython_impl {
         dv3, extract_affine3, extract_mat3, shape_collides, v3d,
     };
     use rustpython_vm::{
-        Py, PyObjectRef, PyPayload, PyResult, VirtualMachine,
+        Py, PyObjectRef, PyPayload, PyRef, PyResult, VirtualMachine,
         builtins::PyType,
         function::FuncArgs,
         pyclass,
@@ -92,11 +92,46 @@ mod rustpython_impl {
                         .map_err(|e| vm.new_value_error(e))?,
                 ));
             }
-            if args.args.len() != 2 {
-                return Err(vm.new_type_error("Plane(normal, d) requires 2 args".to_owned()));
+            if args.args.len() > 2 {
+                return Err(
+                    vm.new_type_error("Plane() takes at most 2 positional arguments".to_owned())
+                );
             }
-            let n = dv3(extract_vec3(&args.args[0], vm)?);
-            let d: f64 = args.args[1].try_float(vm)?.to_f64();
+            let FuncArgs { args, kwargs, .. } = args;
+            let mut positional = args.into_iter();
+            let mut normal = positional.next();
+            let mut d_obj = positional.next();
+            for (name, value) in kwargs {
+                match name.as_str() {
+                    "normal" => {
+                        if normal.replace(value).is_some() {
+                            return Err(vm.new_type_error(
+                                "Plane() got multiple values for argument 'normal'".to_owned(),
+                            ));
+                        }
+                    }
+                    "d" => {
+                        if d_obj.replace(value).is_some() {
+                            return Err(vm.new_type_error(
+                                "Plane() got multiple values for argument 'd'".to_owned(),
+                            ));
+                        }
+                    }
+                    _ => {
+                        return Err(vm.new_type_error(format!(
+                            "Plane() got an unexpected keyword argument '{name}'"
+                        )));
+                    }
+                }
+            }
+            let Some(normal) = normal else {
+                return Err(vm.new_value_error("Plane requires normal argument".to_owned()));
+            };
+            let n = dv3(extract_vec3(&normal, vm)?);
+            let d = match d_obj {
+                Some(obj) => obj.try_float(vm)?.to_f64(),
+                None => 0.0,
+            };
             Ok(Self(Plane::new(n, d as f32)))
         }
     }
@@ -105,6 +140,10 @@ mod rustpython_impl {
             Ok(zelf.0.to_string())
         }
     }
+    impl PyPlane {
+        pub(crate) const DATACLASS_FIELDS: &'static [&'static str] = &["normal", "d"];
+    }
+
     #[pyclass(with(Constructor, Representable))]
     impl PyPlane {
         #[pygetset]
@@ -179,8 +218,8 @@ mod rustpython_impl {
             crate::rp_serde::getnewargs_ex(&self.0, vm)
         }
         #[pygetset]
-        fn __dataclass_fields__(&self, vm: &VirtualMachine) -> PyObjectRef {
-            crate::rp_serde::dataclass_fields(&["normal", "d"], vm)
+        fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::dataclass_dict(zelf.into(), Self::DATACLASS_FIELDS, vm)
         }
     }
 }

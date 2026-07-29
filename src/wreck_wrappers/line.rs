@@ -80,7 +80,7 @@ mod rustpython_impl {
         dv3, extract_affine3, extract_mat3, shape_collides, v3d,
     };
     use rustpython_vm::{
-        Py, PyObjectRef, PyPayload, PyResult, VirtualMachine,
+        Py, PyObjectRef, PyPayload, PyRef, PyResult, VirtualMachine,
         builtins::PyType,
         function::FuncArgs,
         pyclass,
@@ -111,6 +111,10 @@ mod rustpython_impl {
             Ok(zelf.0.to_string())
         }
     }
+    impl PyLine {
+        pub(crate) const DATACLASS_FIELDS: &'static [&'static str] = &["origin", "dir"];
+    }
+
     #[pyclass(with(Constructor, Representable))]
     impl PyLine {
         #[pygetset]
@@ -184,8 +188,8 @@ mod rustpython_impl {
             crate::rp_serde::getnewargs_ex(&self.0, vm)
         }
         #[pygetset]
-        fn __dataclass_fields__(&self, vm: &VirtualMachine) -> PyObjectRef {
-            crate::rp_serde::dataclass_fields(&["origin", "dir"], vm)
+        fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::dataclass_dict(zelf.into(), Self::DATACLASS_FIELDS, vm)
         }
     }
 }

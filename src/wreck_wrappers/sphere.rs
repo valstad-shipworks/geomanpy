@@ -29,21 +29,22 @@ mod pyo3_impl {
     #[pymethods]
     impl PySphere {
         #[new]
-        #[pyo3(signature = (center=None, radius=0.0, *, __pickle_state__=None))]
+        #[pyo3(signature = (center=None, radius=None, *, __pickle_state__=None))]
         fn new(
             center: Option<PyDVec3>,
-            radius: f64,
+            radius: Option<f64>,
             __pickle_state__: Option<Vec<u8>>,
         ) -> PyResult<Self> {
             if let Some(state) = __pickle_state__ {
                 return Ok(Self(pickle_decode::<Sphere>(&state)?));
             }
-            match center {
-                Some(c) => Ok(Self(Sphere::new_d(c.0, radius))),
-                None => Err(pyo3::exceptions::PyValueError::new_err(
-                    "Sphere requires center argument",
-                )),
-            }
+            let c = center.ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err("Sphere requires center argument")
+            })?;
+            let r = radius.ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err("Sphere requires radius argument")
+            })?;
+            Ok(Self(Sphere::new_d(c.0, r)))
         }
         #[getter]
         fn center(&self) -> PyDVec3 {
@@ -75,9 +76,8 @@ mod rustpython_impl {
         dv3, extract_affine3, extract_mat3, shape_collides, v3d,
     };
     use crate::wreck_wrappers::{PyCapsule, PyCuboid};
-    use glam::Vec3;
     use rustpython_vm::{
-        Py, PyObjectRef, PyPayload, PyResult, VirtualMachine,
+        Py, PyObjectRef, PyPayload, PyRef, PyResult, VirtualMachine,
         builtins::PyType,
         function::FuncArgs,
         pyclass,
@@ -88,22 +88,52 @@ mod rustpython_impl {
 
     impl Constructor for PySphere {
         type Args = FuncArgs;
-        fn py_new(_cls: &Py<PyType>, args: FuncArgs, vm: &VirtualMachine) -> PyResult<Self> {
+        fn py_new(_cls: &Py<PyType>, mut args: FuncArgs, vm: &VirtualMachine) -> PyResult<Self> {
             if let Some(state) = crate::rp_serde::take_pickle_state(&args, vm)? {
                 return Ok(Self(
                     crate::pickle::pickle_decode_raw::<Sphere>(&state)
                         .map_err(|e| vm.new_value_error(e))?,
                 ));
             }
-            if args.args.is_empty() {
-                return Ok(Self(Sphere::new(Vec3::ZERO, 0.0)));
+            if args.args.len() > 2 {
+                return Err(vm.new_type_error(format!(
+                    "Sphere() takes 2 arguments ({} given)",
+                    args.args.len()
+                )));
             }
-            if args.args.len() == 2 {
-                let center = extract_vec3(&args.args[0], vm)?;
-                let radius: f64 = args.args[1].try_float(vm)?.to_f64();
-                return Ok(Self(Sphere::new(dv3(center), radius as f32)));
+            let mut pos = std::mem::take(&mut args.args).into_iter();
+            let center = match pos.next() {
+                Some(v) => {
+                    if args.take_keyword("center").is_some() {
+                        return Err(vm.new_type_error(
+                            "Sphere() got multiple values for argument 'center'".to_owned(),
+                        ));
+                    }
+                    v
+                }
+                None => args.take_keyword("center").ok_or_else(|| {
+                    vm.new_value_error("Sphere requires center argument".to_owned())
+                })?,
+            };
+            let radius = match pos.next() {
+                Some(v) => {
+                    if args.take_keyword("radius").is_some() {
+                        return Err(vm.new_type_error(
+                            "Sphere() got multiple values for argument 'radius'".to_owned(),
+                        ));
+                    }
+                    v
+                }
+                None => args.take_keyword("radius").ok_or_else(|| {
+                    vm.new_value_error("Sphere requires radius argument".to_owned())
+                })?,
+            };
+            if let Some(err) = args.check_kwargs_empty(vm) {
+                return Err(err);
             }
-            Err(vm.new_type_error("Sphere() takes 0 or 2 positional arguments".to_owned()))
+            let center = extract_vec3(&center, vm)?;
+            let radius: f64 = radius.try_float(vm)?.to_f64();
+            Ok(Self(Sphere::new(dv3(center), radius as f32)))
         }
     }
     impl Representable for PySphere {
@@ -111,6 +141,10 @@ mod rustpython_impl {
             Ok(zelf.0.to_string())
         }
     }
+    impl PySphere {
+        pub(crate) const DATACLASS_FIELDS: &'static [&'static str] = &["center", "radius"];
+    }
+
     #[pyclass(with(Constructor, Representable))]
     impl PySphere {
         #[pygetset]
@@ -190,8 +224,8 @@ mod rustpython_impl {
             crate::rp_serde::getnewargs_ex(&self.0, vm)
         }
         #[pygetset]
-        fn __dataclass_fields__(&self, vm: &VirtualMachine) -> PyObjectRef {
-            crate::rp_serde::dataclass_fields(&["center", "radius"], vm)
+        fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::dataclass_dict(zelf.into(), Self::DATACLASS_FIELDS, vm)
         }
     }
 }
