@@ -605,6 +605,10 @@ def test_sphere_collection_api():
     assert sc.any_collides_sphere(Sphere([4.0, 0.0, 0.0], 0.5)) is True
     assert sc.any_collides_sphere(Sphere([0.0, 50.0, 0.0], 1.0)) is False
 
+    assert sc.count_overlaps(Sphere([0.0, 50.0, 0.0], 1.0)) == 0
+    assert sc.count_overlaps(Sphere([4.0, 0.0, 0.0], 0.5)) == 1
+    assert sc.count_overlaps(Sphere([5.0, 0.0, 0.0], 20.0)) == 3
+
     built = SphereCollection.from_slice(spheres)
     assert len(built) == 3
     assert built.abs_diff_eq(built, 0.0) is True

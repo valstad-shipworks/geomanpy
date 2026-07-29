@@ -226,6 +226,9 @@ assert sc[0].radius == 1.0
 assert sc.push(Sphere(Vec3(5.0, 0.0, 0.0), 1.0)) is None
 assert len(sc) == 2
 assert sc.any_collides_sphere(Sphere(Vec3(0.5, 0.0, 0.0), 1.0)) is True
+assert sc.count_overlaps(Sphere(Vec3(0.5, 0.0, 0.0), 1.0)) == 1
+assert sc.count_overlaps(Sphere(Vec3(2.5, 0.0, 0.0), 10.0)) == 2
+assert sc.count_overlaps(Sphere(Vec3(0.0, 50.0, 0.0), 1.0)) == 0
 _, kwsc = sc.__getnewargs_ex__()
 assert len(SphereCollection(**kwsc)) == 2
 assert sc.clear() is None

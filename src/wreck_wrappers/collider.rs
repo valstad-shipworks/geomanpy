@@ -83,13 +83,13 @@ mod pyo3_impl {
             self.0.mask()
         }
         fn capsules(&self) -> Vec<PyCapsule> {
-            self.0.capsules().iter().map(|c| PyCapsule(*c)).collect()
+            self.0.capsules().into_iter().map(PyCapsule).collect()
         }
         fn cuboids(&self) -> Vec<PyCuboid> {
-            self.0.cuboids().iter().map(|c| PyCuboid(*c)).collect()
+            self.0.cuboids().into_iter().map(PyCuboid).collect()
         }
         fn cylinders(&self) -> Vec<PyCylinder> {
-            self.0.cylinders().iter().map(|c| PyCylinder(*c)).collect()
+            self.0.cylinders().into_iter().map(PyCylinder).collect()
         }
         fn planes(&self) -> Vec<PyPlane> {
             self.0.planes().iter().map(|p| PyPlane(*p)).collect()
@@ -331,8 +331,7 @@ mod rustpython_impl {
                 .0
                 .read()
                 .capsules()
-                .iter()
-                .copied()
+                .into_iter()
                 .map(|c| PyCapsule(c).into_pyobject(vm))
                 .collect();
             vm.ctx.new_list(items).into()
@@ -344,8 +343,7 @@ mod rustpython_impl {
                 .0
                 .read()
                 .cuboids()
-                .iter()
-                .copied()
+                .into_iter()
                 .map(|c| PyCuboid(c).into_pyobject(vm))
                 .collect();
             vm.ctx.new_list(items).into()
@@ -357,8 +355,7 @@ mod rustpython_impl {
                 .0
                 .read()
                 .cylinders()
-                .iter()
-                .copied()
+                .into_iter()
                 .map(|c| PyCylinder(c).into_pyobject(vm))
                 .collect();
             vm.ctx.new_list(items).into()

@@ -85,6 +85,9 @@ mod pyo3_impl {
         fn any_collides_sphere(&self, sphere: PySphere) -> bool {
             self.0.any_collides_sphere(&sphere.0)
         }
+        fn count_overlaps(&self, sphere: PySphere) -> usize {
+            self.0.count_overlaps(&sphere.0)
+        }
         fn __len__(&self) -> usize {
             self.0.len()
         }
@@ -197,6 +200,13 @@ mod rustpython_impl {
                 .downcast_ref::<PySphere>()
                 .ok_or_else(|| vm.new_type_error("expected Sphere".to_owned()))?;
             Ok(self.0.read().any_collides_sphere(&s.0))
+        }
+        #[pymethod]
+        fn count_overlaps(&self, sphere: PyObjectRef, vm: &VirtualMachine) -> PyResult<usize> {
+            let s = sphere
+                .downcast_ref::<PySphere>()
+                .ok_or_else(|| vm.new_type_error("expected Sphere".to_owned()))?;
+            Ok(self.0.read().count_overlaps(&s.0))
         }
         #[pymethod]
         fn push(&self, sphere: PyObjectRef, vm: &VirtualMachine) -> PyResult<()> {
