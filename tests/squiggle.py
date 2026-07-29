@@ -55,7 +55,7 @@ def expect(exc, fn, what):
         fn()
     except exc:
         return
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         raise AssertionError(
             f"{what}: expected {exc.__name__}, got {type(e).__name__}: {e}"
         )
