@@ -202,32 +202,40 @@ mod rustpython_impl {
     #[pyclass(with(Constructor, Representable))]
     impl PyCylinder {
         #[pygetset]
-        fn p1(&self) -> PyDVec3 {
-            v3d(self.0.p1)
+        fn p1(zelf: &Py<Self>) -> PyDVec3 {
+            v3d(zelf.0.p1)
         }
         #[pygetset]
-        fn p2(&self) -> PyDVec3 {
-            v3d(self.0.p2())
+        fn p2(zelf: &Py<Self>) -> PyDVec3 {
+            v3d(zelf.0.p2())
         }
         #[pygetset]
-        fn radius(&self) -> f64 {
-            self.0.radius as f64
+        fn radius(zelf: &Py<Self>) -> f64 {
+            zelf.0.radius as f64
         }
         #[pymethod]
-        fn length(&self) -> f64 {
-            self.0.length() as f64
+        fn length(zelf: &Py<Self>) -> f64 {
+            zelf.0.length() as f64
         }
         #[pymethod]
-        fn contains_point(&self, point: PyObjectRef, vm: &VirtualMachine) -> PyResult<bool> {
-            Ok(self.0.contains_point(dv3(extract_vec3(&point, vm)?)))
+        fn contains_point(
+            zelf: &Py<Self>,
+            point: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<bool> {
+            Ok(zelf.0.contains_point(dv3(extract_vec3(&point, vm)?)))
         }
         #[pymethod]
-        fn point_dist_sq(&self, point: PyObjectRef, vm: &VirtualMachine) -> PyResult<f64> {
-            Ok(self.0.point_dist_sq(dv3(extract_vec3(&point, vm)?)) as f64)
+        fn point_dist_sq(
+            zelf: &Py<Self>,
+            point: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<f64> {
+            Ok(zelf.0.point_dist_sq(dv3(extract_vec3(&point, vm)?)) as f64)
         }
         #[pymethod]
-        fn bounding_sphere(&self) -> (PyDVec3, f64) {
-            let (c, r) = self.0.bounding_sphere();
+        fn bounding_sphere(zelf: &Py<Self>) -> (PyDVec3, f64) {
+            let (c, r) = zelf.0.bounding_sphere();
             (v3d(c), r as f64)
         }
         #[pystaticmethod]
@@ -245,9 +253,9 @@ mod rustpython_impl {
             )))
         }
         #[pymethod]
-        fn center_orientation(&self) -> (PyDVec3, PyDMat3) {
-            let p1 = self.0.p1;
-            let p2 = self.0.p2();
+        fn center_orientation(zelf: &Py<Self>) -> (PyDVec3, PyDMat3) {
+            let p1 = zelf.0.p1;
+            let p2 = zelf.0.p2();
             let p1d = glam::DVec3::new(p1.x as f64, p1.y as f64, p1.z as f64);
             let p2d = glam::DVec3::new(p2.x as f64, p2.y as f64, p2.z as f64);
             let center = (p1d + p2d) * 0.5;
@@ -264,47 +272,51 @@ mod rustpython_impl {
         }
 
         #[pymethod]
-        fn scaled(&self, factor: f64) -> Self {
-            Self(self.0.scaled_d(factor))
+        fn scaled(zelf: &Py<Self>, factor: f64) -> Self {
+            Self(zelf.0.scaled_d(factor))
         }
         #[pymethod]
-        fn translated(&self, offset: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.translated_d(extract_vec3(&offset, vm)?)))
+        fn translated(zelf: &Py<Self>, offset: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.translated_d(extract_vec3(&offset, vm)?)))
         }
         #[pymethod]
-        fn rotated_mat(&self, mat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.rotated_mat_d(extract_mat3(&mat, vm)?)))
+        fn rotated_mat(zelf: &Py<Self>, mat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.rotated_mat_d(extract_mat3(&mat, vm)?)))
         }
         #[pymethod]
-        fn rotated_quat(&self, quat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.rotated_quat_d(extract_quat(&quat, vm)?)))
+        fn rotated_quat(zelf: &Py<Self>, quat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.rotated_quat_d(extract_quat(&quat, vm)?)))
         }
         #[pymethod]
-        fn transformed(&self, tf: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.transformed_d(extract_affine3(&tf, vm)?)))
-        }
-
-        #[pymethod]
-        fn broadphase(&self) -> PySphere {
-            PySphere(self.0.broadphase())
-        }
-        #[pymethod]
-        fn obb(&self) -> PyCuboid {
-            PyCuboid(self.0.obb())
-        }
-        #[pymethod]
-        fn aabb(&self) -> PyCuboid {
-            PyCuboid(self.0.aabb())
+        fn transformed(zelf: &Py<Self>, tf: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.transformed_d(extract_affine3(&tf, vm)?)))
         }
 
         #[pymethod]
-        fn collides(&self, other: PyObjectRef, vm: &VirtualMachine) -> PyResult<bool> {
-            shape_collides(&self.0, &other, vm)
+        fn broadphase(zelf: &Py<Self>) -> PySphere {
+            PySphere(zelf.0.broadphase())
         }
         #[pymethod]
-        fn stretch(&self, translation: PyObjectRef, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+        fn obb(zelf: &Py<Self>) -> PyCuboid {
+            PyCuboid(zelf.0.obb())
+        }
+        #[pymethod]
+        fn aabb(zelf: &Py<Self>) -> PyCuboid {
+            PyCuboid(zelf.0.aabb())
+        }
+
+        #[pymethod]
+        fn collides(zelf: &Py<Self>, other: PyObjectRef, vm: &VirtualMachine) -> PyResult<bool> {
+            shape_collides(&zelf.0, &other, vm)
+        }
+        #[pymethod]
+        fn stretch(
+            zelf: &Py<Self>,
+            translation: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<PyObjectRef> {
             let t = dv3(extract_vec3(&translation, vm)?);
-            let items: Vec<PyObjectRef> = match self.0.stretch(t) {
+            let items: Vec<PyObjectRef> = match zelf.0.stretch(t) {
                 CylinderStretch::Aligned(c) => vec![PyCylinder(c).into_pyobject(vm)],
                 CylinderStretch::Unaligned(edges, poly) => {
                     let mut out: Vec<PyObjectRef> = edges
@@ -319,7 +331,7 @@ mod rustpython_impl {
         }
         #[pymethod]
         fn abs_diff_eq(
-            &self,
+            zelf: &Py<Self>,
             other: PyObjectRef,
             max_abs_diff: f64,
             vm: &VirtualMachine,
@@ -328,14 +340,14 @@ mod rustpython_impl {
                 .downcast_ref::<PyCylinder>()
                 .ok_or_else(|| vm.new_type_error("expected Cylinder".to_owned()))?;
             Ok(approx::AbsDiffEq::abs_diff_eq(
-                &self.0,
+                &zelf.0,
                 &o.0,
                 max_abs_diff as f32,
             ))
         }
         #[pymethod]
-        fn __getnewargs_ex__(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            crate::rp_serde::getnewargs_ex(&self.0, vm)
+        fn __getnewargs_ex__(zelf: &Py<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::getnewargs_ex(&zelf.0, vm)
         }
         #[pygetset]
         fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {

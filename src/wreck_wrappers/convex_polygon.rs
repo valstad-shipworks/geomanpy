@@ -171,7 +171,7 @@ mod rustpython_impl {
             let mut normal = args.args.get(1).cloned();
             let mut vertices_2d = args.args.get(2).cloned();
             for (name, value) in &args.kwargs {
-                let slot = match name.as_str() {
+                let slot = match name.as_str().unwrap_or_default() {
                     "center" => &mut center,
                     "normal" => &mut normal,
                     "vertices_2d" => &mut vertices_2d,
@@ -212,24 +212,24 @@ mod rustpython_impl {
     #[pyclass(with(Constructor, Representable))]
     impl PyConvexPolygon {
         #[pygetset]
-        fn center(&self) -> PyDVec3 {
-            v3d(self.0.center)
+        fn center(zelf: &Py<Self>) -> PyDVec3 {
+            v3d(zelf.0.center)
         }
         #[pygetset]
-        fn normal(&self) -> PyDVec3 {
-            v3d(self.0.normal)
+        fn normal(zelf: &Py<Self>) -> PyDVec3 {
+            v3d(zelf.0.normal)
         }
         #[pygetset]
-        fn u_axis(&self) -> PyDVec3 {
-            v3d(self.0.u_axis)
+        fn u_axis(zelf: &Py<Self>) -> PyDVec3 {
+            v3d(zelf.0.u_axis)
         }
         #[pygetset]
-        fn v_axis(&self) -> PyDVec3 {
-            v3d(self.0.v_axis)
+        fn v_axis(zelf: &Py<Self>) -> PyDVec3 {
+            v3d(zelf.0.v_axis)
         }
         #[pygetset]
-        fn vertices_2d(&self, vm: &VirtualMachine) -> PyObjectRef {
-            let items: Vec<PyObjectRef> = self
+        fn vertices_2d(zelf: &Py<Self>, vm: &VirtualMachine) -> PyObjectRef {
+            let items: Vec<PyObjectRef> = zelf
                 .0
                 .vertices_2d
                 .iter()
@@ -263,47 +263,51 @@ mod rustpython_impl {
         }
 
         #[pymethod]
-        fn scaled(&self, factor: f64) -> Self {
-            Self(self.0.scaled_d(factor))
+        fn scaled(zelf: &Py<Self>, factor: f64) -> Self {
+            Self(zelf.0.scaled_d(factor))
         }
         #[pymethod]
-        fn translated(&self, offset: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.translated_d(extract_vec3(&offset, vm)?)))
+        fn translated(zelf: &Py<Self>, offset: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.translated_d(extract_vec3(&offset, vm)?)))
         }
         #[pymethod]
-        fn rotated_mat(&self, mat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.rotated_mat_d(extract_mat3(&mat, vm)?)))
+        fn rotated_mat(zelf: &Py<Self>, mat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.rotated_mat_d(extract_mat3(&mat, vm)?)))
         }
         #[pymethod]
-        fn rotated_quat(&self, quat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.rotated_quat_d(extract_quat(&quat, vm)?)))
+        fn rotated_quat(zelf: &Py<Self>, quat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.rotated_quat_d(extract_quat(&quat, vm)?)))
         }
         #[pymethod]
-        fn transformed(&self, tf: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.transformed_d(extract_affine3(&tf, vm)?)))
-        }
-
-        #[pymethod]
-        fn broadphase(&self) -> PySphere {
-            PySphere(self.0.broadphase())
-        }
-        #[pymethod]
-        fn obb(&self) -> PyCuboid {
-            PyCuboid(self.0.obb())
-        }
-        #[pymethod]
-        fn aabb(&self) -> PyCuboid {
-            PyCuboid(self.0.aabb())
+        fn transformed(zelf: &Py<Self>, tf: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.transformed_d(extract_affine3(&tf, vm)?)))
         }
 
         #[pymethod]
-        fn collides(&self, other: PyObjectRef, vm: &VirtualMachine) -> PyResult<bool> {
-            shape_collides(&self.0, &other, vm)
+        fn broadphase(zelf: &Py<Self>) -> PySphere {
+            PySphere(zelf.0.broadphase())
         }
         #[pymethod]
-        fn stretch(&self, translation: PyObjectRef, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+        fn obb(zelf: &Py<Self>) -> PyCuboid {
+            PyCuboid(zelf.0.obb())
+        }
+        #[pymethod]
+        fn aabb(zelf: &Py<Self>) -> PyCuboid {
+            PyCuboid(zelf.0.aabb())
+        }
+
+        #[pymethod]
+        fn collides(zelf: &Py<Self>, other: PyObjectRef, vm: &VirtualMachine) -> PyResult<bool> {
+            shape_collides(&zelf.0, &other, vm)
+        }
+        #[pymethod]
+        fn stretch(
+            zelf: &Py<Self>,
+            translation: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<PyObjectRef> {
             let t = dv3(extract_vec3(&translation, vm)?);
-            let items: Vec<PyObjectRef> = match self.0.stretch(t) {
+            let items: Vec<PyObjectRef> = match zelf.0.stretch(t) {
                 ConvexPolygonStretch::InPlane(p) => vec![PyConvexPolygon(p).into_pyobject(vm)],
                 ConvexPolygonStretch::OutOfPlane(p) => vec![PyConvexPolytope(p).into_pyobject(vm)],
             };
@@ -311,7 +315,7 @@ mod rustpython_impl {
         }
         #[pymethod]
         fn abs_diff_eq(
-            &self,
+            zelf: &Py<Self>,
             other: PyObjectRef,
             max_abs_diff: f64,
             vm: &VirtualMachine,
@@ -320,14 +324,14 @@ mod rustpython_impl {
                 .downcast_ref::<PyConvexPolygon>()
                 .ok_or_else(|| vm.new_type_error("expected ConvexPolygon".to_owned()))?;
             Ok(approx::AbsDiffEq::abs_diff_eq(
-                &self.0,
+                &zelf.0,
                 &o.0,
                 max_abs_diff as f32,
             ))
         }
         #[pymethod]
-        fn __getnewargs_ex__(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            crate::rp_serde::getnewargs_ex(&self.0, vm)
+        fn __getnewargs_ex__(zelf: &Py<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::getnewargs_ex(&zelf.0, vm)
         }
         #[pygetset]
         fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {

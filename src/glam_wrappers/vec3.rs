@@ -747,29 +747,29 @@ mod rustpython_impl {
     impl PyDVec3 {
         // Components
         #[pygetset]
-        fn x(&self) -> f64 {
-            self.0.x
+        fn x(zelf: &Py<Self>) -> f64 {
+            zelf.0.x
         }
         #[pygetset]
-        fn y(&self) -> f64 {
-            self.0.y
+        fn y(zelf: &Py<Self>) -> f64 {
+            zelf.0.y
         }
         #[pygetset]
-        fn z(&self) -> f64 {
-            self.0.z
+        fn z(zelf: &Py<Self>) -> f64 {
+            zelf.0.z
         }
 
         #[pymethod]
-        fn with_x(&self, x: f64) -> Self {
-            Self(self.0.with_x(x))
+        fn with_x(zelf: &Py<Self>, x: f64) -> Self {
+            Self(zelf.0.with_x(x))
         }
         #[pymethod]
-        fn with_y(&self, y: f64) -> Self {
-            Self(self.0.with_y(y))
+        fn with_y(zelf: &Py<Self>, y: f64) -> Self {
+            Self(zelf.0.with_y(y))
         }
         #[pymethod]
-        fn with_z(&self, z: f64) -> Self {
-            Self(self.0.with_z(z))
+        fn with_z(zelf: &Py<Self>, z: f64) -> Self {
+            Self(zelf.0.with_z(z))
         }
 
         // Constructors
@@ -791,46 +791,46 @@ mod rustpython_impl {
             )))
         }
         #[pymethod]
-        fn to_numpy(&self, vm: &VirtualMachine) -> PyObjectRef {
-            crate::glam_wrappers::pyndarray_from_slice(&self.0.to_array(), vm)
+        fn to_numpy(zelf: &Py<Self>, vm: &VirtualMachine) -> PyObjectRef {
+            crate::glam_wrappers::pyndarray_from_slice(&zelf.0.to_array(), vm)
         }
         #[pymethod]
-        fn __array__(&self, vm: &VirtualMachine) -> PyObjectRef {
-            crate::glam_wrappers::pyndarray_from_slice(&self.0.to_array(), vm)
+        fn __array__(zelf: &Py<Self>, vm: &VirtualMachine) -> PyObjectRef {
+            crate::glam_wrappers::pyndarray_from_slice(&zelf.0.to_array(), vm)
         }
 
         // Array conversion
         #[pymethod]
-        fn to_array(&self, vm: &VirtualMachine) -> PyObjectRef {
+        fn to_array(zelf: &Py<Self>, vm: &VirtualMachine) -> PyObjectRef {
             vm.ctx
                 .new_list(vec![
-                    vm.ctx.new_float(self.0.x).into(),
-                    vm.ctx.new_float(self.0.y).into(),
-                    vm.ctx.new_float(self.0.z).into(),
+                    vm.ctx.new_float(zelf.0.x).into(),
+                    vm.ctx.new_float(zelf.0.y).into(),
+                    vm.ctx.new_float(zelf.0.z).into(),
                 ])
                 .into()
         }
         #[pymethod]
-        fn to_list(&self, vm: &VirtualMachine) -> PyObjectRef {
+        fn to_list(zelf: &Py<Self>, vm: &VirtualMachine) -> PyObjectRef {
             vm.ctx
                 .new_list(vec![
-                    vm.ctx.new_float(self.0.x).into(),
-                    vm.ctx.new_float(self.0.y).into(),
-                    vm.ctx.new_float(self.0.z).into(),
+                    vm.ctx.new_float(zelf.0.x).into(),
+                    vm.ctx.new_float(zelf.0.y).into(),
+                    vm.ctx.new_float(zelf.0.z).into(),
                 ])
                 .into()
         }
         #[pymethod]
-        fn extend(&self, w: f64) -> PyDVec4 {
-            PyDVec4(self.0.extend(w))
+        fn extend(zelf: &Py<Self>, w: f64) -> PyDVec4 {
+            PyDVec4(zelf.0.extend(w))
         }
         #[pymethod]
-        fn truncate(&self) -> PyDVec2 {
-            PyDVec2(self.0.truncate())
+        fn truncate(zelf: &Py<Self>) -> PyDVec2 {
+            PyDVec2(zelf.0.truncate())
         }
         #[pymethod]
-        fn to_homogeneous(&self) -> PyDVec4 {
-            PyDVec4(self.0.to_homogeneous())
+        fn to_homogeneous(zelf: &Py<Self>) -> PyDVec4 {
+            PyDVec4(zelf.0.to_homogeneous())
         }
         #[pystaticmethod]
         fn from_homogeneous(v: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
@@ -850,7 +850,7 @@ mod rustpython_impl {
         }
         #[pymethod]
         fn angle(
-            &self,
+            zelf: &Py<Self>,
             ref_axis: OptionalArg<PyObjectRef>,
             vm: &VirtualMachine,
         ) -> PyResult<PyDMat3> {
@@ -858,7 +858,7 @@ mod rustpython_impl {
                 OptionalArg::Present(obj) if !vm.is_none(&obj) => extract(&obj, vm)?,
                 _ => DVec3::X,
             };
-            let v_len = self.0.length();
+            let v_len = zelf.0.length();
             if v_len < 1e-10 {
                 return Err(vm.new_value_error(
                     "Rotation undefined for zero translation vector.".to_owned(),
@@ -868,7 +868,7 @@ mod rustpython_impl {
             if r_len < 1e-10 {
                 return Err(vm.new_value_error("ref_axis must be non-zero".to_owned()));
             }
-            let v_hat = self.0 / v_len;
+            let v_hat = zelf.0 / v_len;
             let r_hat = r / r_len;
             let cross = r_hat.cross(v_hat);
             let dot = r_hat.dot(v_hat);
@@ -894,328 +894,364 @@ mod rustpython_impl {
 
         // Core glam methods
         #[pymethod]
-        fn dot(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<f64> {
-            Ok(self.0.dot(extract(&rhs, vm)?))
+        fn dot(zelf: &Py<Self>, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<f64> {
+            Ok(zelf.0.dot(extract(&rhs, vm)?))
         }
         #[pymethod]
-        fn cross(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.cross(extract(&rhs, vm)?)))
+        fn cross(zelf: &Py<Self>, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.cross(extract(&rhs, vm)?)))
         }
         #[pymethod]
-        fn length(&self) -> f64 {
-            self.0.length()
+        fn length(zelf: &Py<Self>) -> f64 {
+            zelf.0.length()
         }
         #[pymethod]
-        fn length_squared(&self) -> f64 {
-            self.0.length_squared()
+        fn length_squared(zelf: &Py<Self>) -> f64 {
+            zelf.0.length_squared()
         }
         #[pymethod]
-        fn length_recip(&self) -> f64 {
-            self.0.length_recip()
+        fn length_recip(zelf: &Py<Self>) -> f64 {
+            zelf.0.length_recip()
         }
         #[pymethod]
-        fn distance(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<f64> {
-            Ok(self.0.distance(extract(&rhs, vm)?))
+        fn distance(zelf: &Py<Self>, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<f64> {
+            Ok(zelf.0.distance(extract(&rhs, vm)?))
         }
         #[pymethod]
-        fn distance_squared(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<f64> {
-            Ok(self.0.distance_squared(extract(&rhs, vm)?))
+        fn distance_squared(
+            zelf: &Py<Self>,
+            rhs: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<f64> {
+            Ok(zelf.0.distance_squared(extract(&rhs, vm)?))
         }
         #[pymethod]
-        fn normalize(&self) -> Self {
-            Self(self.0.normalize())
+        fn normalize(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.normalize())
         }
         #[pymethod]
-        fn normalize_or_zero(&self) -> Self {
-            Self(self.0.normalize_or_zero())
+        fn normalize_or_zero(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.normalize_or_zero())
         }
         #[pymethod]
-        fn is_normalized(&self) -> bool {
-            self.0.is_normalized()
+        fn is_normalized(zelf: &Py<Self>) -> bool {
+            zelf.0.is_normalized()
         }
         #[pymethod]
-        fn try_normalize(&self) -> Option<Self> {
-            self.0.try_normalize().map(Self)
+        fn try_normalize(zelf: &Py<Self>) -> Option<Self> {
+            zelf.0.try_normalize().map(Self)
         }
         #[pymethod]
-        fn normalize_or(&self, fallback: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.normalize_or(extract(&fallback, vm)?)))
+        fn normalize_or(
+            zelf: &Py<Self>,
+            fallback: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<Self> {
+            Ok(Self(zelf.0.normalize_or(extract(&fallback, vm)?)))
         }
         #[pymethod]
-        fn normalize_and_length(&self) -> (Self, f64) {
-            let (v, l) = self.0.normalize_and_length();
+        fn normalize_and_length(zelf: &Py<Self>) -> (Self, f64) {
+            let (v, l) = zelf.0.normalize_and_length();
             (Self(v), l)
         }
 
         // Projection / reflection
         #[pymethod]
-        fn project_onto(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.project_onto(extract(&rhs, vm)?)))
+        fn project_onto(zelf: &Py<Self>, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.project_onto(extract(&rhs, vm)?)))
         }
         #[pymethod]
-        fn reject_from(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.reject_from(extract(&rhs, vm)?)))
+        fn reject_from(zelf: &Py<Self>, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.reject_from(extract(&rhs, vm)?)))
         }
         #[pymethod]
-        fn project_onto_normalized(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.project_onto_normalized(extract(&rhs, vm)?)))
+        fn project_onto_normalized(
+            zelf: &Py<Self>,
+            rhs: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<Self> {
+            Ok(Self(zelf.0.project_onto_normalized(extract(&rhs, vm)?)))
         }
         #[pymethod]
-        fn reject_from_normalized(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.reject_from_normalized(extract(&rhs, vm)?)))
+        fn reject_from_normalized(
+            zelf: &Py<Self>,
+            rhs: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<Self> {
+            Ok(Self(zelf.0.reject_from_normalized(extract(&rhs, vm)?)))
         }
         #[pymethod]
-        fn reflect(&self, normal: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.reflect(extract(&normal, vm)?)))
+        fn reflect(zelf: &Py<Self>, normal: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.reflect(extract(&normal, vm)?)))
         }
         #[pymethod]
-        fn refract(&self, normal: PyObjectRef, eta: f64, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.refract(extract(&normal, vm)?, eta)))
+        fn refract(
+            zelf: &Py<Self>,
+            normal: PyObjectRef,
+            eta: f64,
+            vm: &VirtualMachine,
+        ) -> PyResult<Self> {
+            Ok(Self(zelf.0.refract(extract(&normal, vm)?, eta)))
         }
 
         // Interpolation
         #[pymethod]
-        fn lerp(&self, rhs: PyObjectRef, s: f64, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.lerp(extract(&rhs, vm)?, s)))
+        fn lerp(zelf: &Py<Self>, rhs: PyObjectRef, s: f64, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.lerp(extract(&rhs, vm)?, s)))
         }
         #[pymethod]
-        fn slerp(&self, rhs: PyObjectRef, s: f64, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.slerp(extract(&rhs, vm)?, s)))
+        fn slerp(zelf: &Py<Self>, rhs: PyObjectRef, s: f64, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.slerp(extract(&rhs, vm)?, s)))
         }
         #[pymethod]
-        fn move_towards(&self, rhs: PyObjectRef, d: f64, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.move_towards(extract(&rhs, vm)?, d)))
+        fn move_towards(
+            zelf: &Py<Self>,
+            rhs: PyObjectRef,
+            d: f64,
+            vm: &VirtualMachine,
+        ) -> PyResult<Self> {
+            Ok(Self(zelf.0.move_towards(extract(&rhs, vm)?, d)))
         }
         #[pymethod]
-        fn midpoint(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.midpoint(extract(&rhs, vm)?)))
+        fn midpoint(zelf: &Py<Self>, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.midpoint(extract(&rhs, vm)?)))
         }
 
         // Element ops
         #[pymethod]
-        fn min(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.min(extract(&rhs, vm)?)))
+        fn min(zelf: &Py<Self>, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.min(extract(&rhs, vm)?)))
         }
         #[pymethod]
-        fn max(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.max(extract(&rhs, vm)?)))
+        fn max(zelf: &Py<Self>, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.max(extract(&rhs, vm)?)))
         }
         #[pymethod]
-        fn clamp(&self, min: PyObjectRef, max: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.clamp(extract(&min, vm)?, extract(&max, vm)?)))
+        fn clamp(
+            zelf: &Py<Self>,
+            min: PyObjectRef,
+            max: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<Self> {
+            Ok(Self(zelf.0.clamp(extract(&min, vm)?, extract(&max, vm)?)))
         }
         #[pymethod]
-        fn min_element(&self) -> f64 {
-            self.0.min_element()
+        fn min_element(zelf: &Py<Self>) -> f64 {
+            zelf.0.min_element()
         }
         #[pymethod]
-        fn max_element(&self) -> f64 {
-            self.0.max_element()
+        fn max_element(zelf: &Py<Self>) -> f64 {
+            zelf.0.max_element()
         }
         #[pymethod]
-        fn min_position(&self) -> usize {
-            self.0.min_position()
+        fn min_position(zelf: &Py<Self>) -> usize {
+            zelf.0.min_position()
         }
         #[pymethod]
-        fn max_position(&self) -> usize {
-            self.0.max_position()
+        fn max_position(zelf: &Py<Self>) -> usize {
+            zelf.0.max_position()
         }
         #[pymethod]
-        fn clamp_length(&self, min: f64, max: f64) -> Self {
-            Self(self.0.clamp_length(min, max))
+        fn clamp_length(zelf: &Py<Self>, min: f64, max: f64) -> Self {
+            Self(zelf.0.clamp_length(min, max))
         }
         #[pymethod]
-        fn clamp_length_max(&self, max: f64) -> Self {
-            Self(self.0.clamp_length_max(max))
+        fn clamp_length_max(zelf: &Py<Self>, max: f64) -> Self {
+            Self(zelf.0.clamp_length_max(max))
         }
         #[pymethod]
-        fn clamp_length_min(&self, min: f64) -> Self {
-            Self(self.0.clamp_length_min(min))
+        fn clamp_length_min(zelf: &Py<Self>, min: f64) -> Self {
+            Self(zelf.0.clamp_length_min(min))
         }
         #[pymethod]
-        fn element_sum(&self) -> f64 {
-            self.0.element_sum()
+        fn element_sum(zelf: &Py<Self>) -> f64 {
+            zelf.0.element_sum()
         }
         #[pymethod]
-        fn element_product(&self) -> f64 {
-            self.0.element_product()
+        fn element_product(zelf: &Py<Self>) -> f64 {
+            zelf.0.element_product()
         }
         #[pymethod]
-        fn copysign(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.copysign(extract(&rhs, vm)?)))
+        fn copysign(zelf: &Py<Self>, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.copysign(extract(&rhs, vm)?)))
         }
         #[pymethod]
-        fn mul_add(&self, a: PyObjectRef, b: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.mul_add(extract(&a, vm)?, extract(&b, vm)?)))
+        fn mul_add(
+            zelf: &Py<Self>,
+            a: PyObjectRef,
+            b: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<Self> {
+            Ok(Self(zelf.0.mul_add(extract(&a, vm)?, extract(&b, vm)?)))
         }
         #[pymethod]
-        fn step(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.step(extract(&rhs, vm)?)))
+        fn step(zelf: &Py<Self>, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.step(extract(&rhs, vm)?)))
         }
         #[pymethod]
-        fn div_euclid(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.div_euclid(extract(&rhs, vm)?)))
+        fn div_euclid(zelf: &Py<Self>, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.div_euclid(extract(&rhs, vm)?)))
         }
         #[pymethod]
-        fn rem_euclid(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.rem_euclid(extract(&rhs, vm)?)))
+        fn rem_euclid(zelf: &Py<Self>, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.rem_euclid(extract(&rhs, vm)?)))
         }
         #[pymethod]
-        fn sin_cos(&self) -> (Self, Self) {
-            let (s, c) = self.0.sin_cos();
+        fn sin_cos(zelf: &Py<Self>) -> (Self, Self) {
+            let (s, c) = zelf.0.sin_cos();
             (Self(s), Self(c))
         }
 
         // Rotation
         #[pymethod]
-        fn angle_between(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<f64> {
-            Ok(self.0.angle_between(extract(&rhs, vm)?))
+        fn angle_between(zelf: &Py<Self>, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<f64> {
+            Ok(zelf.0.angle_between(extract(&rhs, vm)?))
         }
         #[pymethod]
-        fn rotate_x(&self, angle: f64) -> Self {
-            Self(self.0.rotate_x(angle))
+        fn rotate_x(zelf: &Py<Self>, angle: f64) -> Self {
+            Self(zelf.0.rotate_x(angle))
         }
         #[pymethod]
-        fn rotate_y(&self, angle: f64) -> Self {
-            Self(self.0.rotate_y(angle))
+        fn rotate_y(zelf: &Py<Self>, angle: f64) -> Self {
+            Self(zelf.0.rotate_y(angle))
         }
         #[pymethod]
-        fn rotate_z(&self, angle: f64) -> Self {
-            Self(self.0.rotate_z(angle))
+        fn rotate_z(zelf: &Py<Self>, angle: f64) -> Self {
+            Self(zelf.0.rotate_z(angle))
         }
         #[pymethod]
         fn rotate_axis(
-            &self,
+            zelf: &Py<Self>,
             axis: PyObjectRef,
             angle: f64,
             vm: &VirtualMachine,
         ) -> PyResult<Self> {
-            Ok(Self(self.0.rotate_axis(extract(&axis, vm)?, angle)))
+            Ok(Self(zelf.0.rotate_axis(extract(&axis, vm)?, angle)))
         }
         #[pymethod]
         fn rotate_towards(
-            &self,
+            zelf: &Py<Self>,
             rhs: PyObjectRef,
             max_angle: f64,
             vm: &VirtualMachine,
         ) -> PyResult<Self> {
-            Ok(Self(self.0.rotate_towards(extract(&rhs, vm)?, max_angle)))
+            Ok(Self(zelf.0.rotate_towards(extract(&rhs, vm)?, max_angle)))
         }
         #[pymethod]
-        fn any_orthogonal_vector(&self) -> Self {
-            Self(self.0.any_orthogonal_vector())
+        fn any_orthogonal_vector(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.any_orthogonal_vector())
         }
         #[pymethod]
-        fn any_orthonormal_vector(&self) -> Self {
-            Self(self.0.any_orthonormal_vector())
+        fn any_orthonormal_vector(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.any_orthonormal_vector())
         }
         #[pymethod]
-        fn any_orthonormal_pair(&self) -> (Self, Self) {
-            let (a, b) = self.0.any_orthonormal_pair();
+        fn any_orthonormal_pair(zelf: &Py<Self>) -> (Self, Self) {
+            let (a, b) = zelf.0.any_orthonormal_pair();
             (Self(a), Self(b))
         }
 
         // Predicates
         #[pymethod]
-        fn is_finite(&self) -> bool {
-            self.0.is_finite()
+        fn is_finite(zelf: &Py<Self>) -> bool {
+            zelf.0.is_finite()
         }
         #[pymethod]
-        fn is_nan(&self) -> bool {
-            self.0.is_nan()
+        fn is_nan(zelf: &Py<Self>) -> bool {
+            zelf.0.is_nan()
         }
         #[pymethod]
         fn abs_diff_eq(
-            &self,
+            zelf: &Py<Self>,
             rhs: PyObjectRef,
             max_abs_diff: f64,
             vm: &VirtualMachine,
         ) -> PyResult<bool> {
-            Ok(self.0.abs_diff_eq(extract(&rhs, vm)?, max_abs_diff))
+            Ok(zelf.0.abs_diff_eq(extract(&rhs, vm)?, max_abs_diff))
         }
 
         // Unary
         #[pymethod]
-        fn abs(&self) -> Self {
-            Self(self.0.abs())
+        fn abs(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.abs())
         }
         #[pymethod]
-        fn signum(&self) -> Self {
-            Self(self.0.signum())
+        fn signum(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.signum())
         }
         #[pymethod]
-        fn floor(&self) -> Self {
-            Self(self.0.floor())
+        fn floor(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.floor())
         }
         #[pymethod]
-        fn ceil(&self) -> Self {
-            Self(self.0.ceil())
+        fn ceil(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.ceil())
         }
         #[pymethod]
-        fn round(&self) -> Self {
-            Self(self.0.round())
+        fn round(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.round())
         }
         #[pymethod]
-        fn trunc(&self) -> Self {
-            Self(self.0.trunc())
+        fn trunc(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.trunc())
         }
         #[pymethod]
-        fn fract(&self) -> Self {
-            Self(self.0.fract())
+        fn fract(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.fract())
         }
         #[pymethod]
-        fn fract_gl(&self) -> Self {
-            Self(self.0.fract_gl())
+        fn fract_gl(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.fract_gl())
         }
         #[pymethod]
-        fn exp(&self) -> Self {
-            Self(self.0.exp())
+        fn exp(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.exp())
         }
         #[pymethod]
-        fn exp2(&self) -> Self {
-            Self(self.0.exp2())
+        fn exp2(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.exp2())
         }
         #[pymethod]
-        fn ln(&self) -> Self {
-            Self(self.0.ln())
+        fn ln(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.ln())
         }
         #[pymethod]
-        fn log2(&self) -> Self {
-            Self(self.0.log2())
+        fn log2(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.log2())
         }
         #[pymethod]
-        fn powf(&self, n: f64) -> Self {
-            Self(self.0.powf(n))
+        fn powf(zelf: &Py<Self>, n: f64) -> Self {
+            Self(zelf.0.powf(n))
         }
         #[pymethod]
-        fn recip(&self) -> Self {
-            Self(self.0.recip())
+        fn recip(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.recip())
         }
         #[pymethod]
-        fn sqrt(&self) -> Self {
-            Self(self.0.sqrt())
+        fn sqrt(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.sqrt())
         }
         #[pymethod]
-        fn cos(&self) -> Self {
-            Self(self.0.cos())
+        fn cos(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.cos())
         }
         #[pymethod]
-        fn sin(&self) -> Self {
-            Self(self.0.sin())
+        fn sin(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.sin())
         }
         #[pymethod]
-        fn saturate(&self) -> Self {
-            Self(self.0.saturate())
+        fn saturate(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.saturate())
         }
 
         #[pymethod(name = "__str__")]
-        fn str(&self) -> String {
-            format!("[{}, {}, {}]", self.0.x, self.0.y, self.0.z)
+        fn str(zelf: &Py<Self>) -> String {
+            format!("[{}, {}, {}]", zelf.0.x, zelf.0.y, zelf.0.z)
         }
 
         #[pymethod]
-        fn to_json(&self, vm: &VirtualMachine) -> PyResult<String> {
-            crate::rp_serde::to_json(&self.0, vm)
+        fn to_json(zelf: &Py<Self>, vm: &VirtualMachine) -> PyResult<String> {
+            crate::rp_serde::to_json(&zelf.0, vm)
         }
         #[pystaticmethod]
         fn from_json(s: String, vm: &VirtualMachine) -> PyResult<Self> {
@@ -1226,8 +1262,8 @@ mod rustpython_impl {
             crate::rp_serde::try_from_json::<DVec3>(&s).map(Self)
         }
         #[pymethod]
-        fn to_dict(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            crate::rp_serde::to_dict(&self.0, vm)
+        fn to_dict(zelf: &Py<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::to_dict(&zelf.0, vm)
         }
         #[pystaticmethod]
         fn from_dict(obj: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
@@ -1239,8 +1275,8 @@ mod rustpython_impl {
         }
 
         #[pymethod]
-        fn __getnewargs_ex__(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            crate::rp_serde::getnewargs_ex(&self.0, vm)
+        fn __getnewargs_ex__(zelf: &Py<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::getnewargs_ex(&zelf.0, vm)
         }
 
         #[pygetset]

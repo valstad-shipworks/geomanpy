@@ -119,62 +119,66 @@ mod rustpython_impl {
     #[pyclass(with(Constructor, Representable))]
     impl PyLineSegment {
         #[pygetset]
-        fn p1(&self) -> PyDVec3 {
-            v3d(self.0.start)
+        fn p1(zelf: &Py<Self>) -> PyDVec3 {
+            v3d(zelf.0.start)
         }
         #[pygetset]
-        fn p2(&self) -> PyDVec3 {
-            v3d(self.0.end)
+        fn p2(zelf: &Py<Self>) -> PyDVec3 {
+            v3d(zelf.0.end)
         }
         #[pymethod]
-        fn bounding_sphere(&self) -> (PyDVec3, f64) {
-            let c = self.0.midpoint();
-            let r = self.0.dir().length() * 0.5;
+        fn bounding_sphere(zelf: &Py<Self>) -> (PyDVec3, f64) {
+            let c = zelf.0.midpoint();
+            let r = zelf.0.dir().length() * 0.5;
             (v3d(c), r as f64)
         }
 
         #[pymethod]
-        fn scaled(&self, factor: f64) -> Self {
-            Self(self.0.scaled_d(factor))
+        fn scaled(zelf: &Py<Self>, factor: f64) -> Self {
+            Self(zelf.0.scaled_d(factor))
         }
         #[pymethod]
-        fn translated(&self, offset: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.translated_d(extract_vec3(&offset, vm)?)))
+        fn translated(zelf: &Py<Self>, offset: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.translated_d(extract_vec3(&offset, vm)?)))
         }
         #[pymethod]
-        fn rotated_mat(&self, mat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.rotated_mat_d(extract_mat3(&mat, vm)?)))
+        fn rotated_mat(zelf: &Py<Self>, mat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.rotated_mat_d(extract_mat3(&mat, vm)?)))
         }
         #[pymethod]
-        fn rotated_quat(&self, quat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.rotated_quat_d(extract_quat(&quat, vm)?)))
+        fn rotated_quat(zelf: &Py<Self>, quat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.rotated_quat_d(extract_quat(&quat, vm)?)))
         }
         #[pymethod]
-        fn transformed(&self, tf: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.transformed_d(extract_affine3(&tf, vm)?)))
-        }
-
-        #[pymethod]
-        fn broadphase(&self) -> PySphere {
-            PySphere(wreck::Bounded::broadphase(&self.0))
-        }
-        #[pymethod]
-        fn obb(&self) -> PyCuboid {
-            PyCuboid(wreck::Bounded::obb(&self.0))
-        }
-        #[pymethod]
-        fn aabb(&self) -> PyCuboid {
-            PyCuboid(wreck::Bounded::aabb(&self.0))
+        fn transformed(zelf: &Py<Self>, tf: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.transformed_d(extract_affine3(&tf, vm)?)))
         }
 
         #[pymethod]
-        fn collides(&self, other: PyObjectRef, vm: &VirtualMachine) -> PyResult<bool> {
-            shape_collides(&self.0, &other, vm)
+        fn broadphase(zelf: &Py<Self>) -> PySphere {
+            PySphere(wreck::Bounded::broadphase(&zelf.0))
         }
         #[pymethod]
-        fn stretch(&self, translation: PyObjectRef, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+        fn obb(zelf: &Py<Self>) -> PyCuboid {
+            PyCuboid(wreck::Bounded::obb(&zelf.0))
+        }
+        #[pymethod]
+        fn aabb(zelf: &Py<Self>) -> PyCuboid {
+            PyCuboid(wreck::Bounded::aabb(&zelf.0))
+        }
+
+        #[pymethod]
+        fn collides(zelf: &Py<Self>, other: PyObjectRef, vm: &VirtualMachine) -> PyResult<bool> {
+            shape_collides(&zelf.0, &other, vm)
+        }
+        #[pymethod]
+        fn stretch(
+            zelf: &Py<Self>,
+            translation: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<PyObjectRef> {
             let t = dv3(extract_vec3(&translation, vm)?);
-            let items: Vec<PyObjectRef> = match self.0.stretch(t) {
+            let items: Vec<PyObjectRef> = match zelf.0.stretch(t) {
                 LineSegmentStretch::Parallel(s) => vec![PyLineSegment(s).into_pyobject(vm)],
                 LineSegmentStretch::Polygon(p) => vec![PyConvexPolygon(p).into_pyobject(vm)],
             };
@@ -182,7 +186,7 @@ mod rustpython_impl {
         }
         #[pymethod]
         fn abs_diff_eq(
-            &self,
+            zelf: &Py<Self>,
             other: PyObjectRef,
             max_abs_diff: f64,
             vm: &VirtualMachine,
@@ -191,14 +195,14 @@ mod rustpython_impl {
                 .downcast_ref::<PyLineSegment>()
                 .ok_or_else(|| vm.new_type_error("expected LineSegment".to_owned()))?;
             Ok(approx::AbsDiffEq::abs_diff_eq(
-                &self.0,
+                &zelf.0,
                 &o.0,
                 max_abs_diff as f32,
             ))
         }
         #[pymethod]
-        fn __getnewargs_ex__(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            crate::rp_serde::getnewargs_ex(&self.0, vm)
+        fn __getnewargs_ex__(zelf: &Py<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::getnewargs_ex(&zelf.0, vm)
         }
         #[pygetset]
         fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
