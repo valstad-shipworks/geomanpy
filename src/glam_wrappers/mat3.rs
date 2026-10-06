@@ -487,7 +487,7 @@ mod rustpython_impl {
             let mut kwargs = args.kwargs;
             let mut axes = [None; 3];
             for (i, name) in ["x_axis", "y_axis", "z_axis"].iter().enumerate() {
-                let from_kwarg = kwargs.swap_remove(*name);
+                let from_kwarg = kwargs.swap_remove(name);
                 axes[i] = if let Some(obj) = args.args.get(i) {
                     if from_kwarg.is_some() {
                         return Err(vm.new_type_error(format!(
@@ -542,16 +542,16 @@ mod rustpython_impl {
     #[pyclass(with(Constructor, Representable, AsNumber, Comparable, Hashable))]
     impl PyDMat3 {
         #[pygetset]
-        fn x_axis(&self) -> PyDVec3 {
-            PyDVec3(self.0.x_axis)
+        fn x_axis(zelf: &Py<Self>) -> PyDVec3 {
+            PyDVec3(zelf.0.x_axis)
         }
         #[pygetset]
-        fn y_axis(&self) -> PyDVec3 {
-            PyDVec3(self.0.y_axis)
+        fn y_axis(zelf: &Py<Self>) -> PyDVec3 {
+            PyDVec3(zelf.0.y_axis)
         }
         #[pygetset]
-        fn z_axis(&self) -> PyDVec3 {
-            PyDVec3(self.0.z_axis)
+        fn z_axis(zelf: &Py<Self>) -> PyDVec3 {
+            PyDVec3(zelf.0.z_axis)
         }
 
         #[pystaticmethod]
@@ -602,22 +602,22 @@ mod rustpython_impl {
             )))
         }
         #[pymethod]
-        fn to_numpy(&self, vm: &VirtualMachine) -> PyObjectRef {
+        fn to_numpy(zelf: &Py<Self>, vm: &VirtualMachine) -> PyObjectRef {
             crate::glam_wrappers::pyndarray_from_rows(
-                crate::glam_wrappers::transpose_array2_rp(self.0.to_cols_array_2d()),
+                crate::glam_wrappers::transpose_array2_rp(zelf.0.to_cols_array_2d()),
                 vm,
             )
         }
         #[pymethod]
-        fn __array__(&self, vm: &VirtualMachine) -> PyObjectRef {
+        fn __array__(zelf: &Py<Self>, vm: &VirtualMachine) -> PyObjectRef {
             crate::glam_wrappers::pyndarray_from_rows(
-                crate::glam_wrappers::transpose_array2_rp(self.0.to_cols_array_2d()),
+                crate::glam_wrappers::transpose_array2_rp(zelf.0.to_cols_array_2d()),
                 vm,
             )
         }
         #[pymethod]
-        fn to_cols_array(&self, vm: &VirtualMachine) -> PyObjectRef {
-            let items = self
+        fn to_cols_array(zelf: &Py<Self>, vm: &VirtualMachine) -> PyObjectRef {
+            let items = zelf
                 .0
                 .to_cols_array()
                 .iter()
@@ -626,8 +626,8 @@ mod rustpython_impl {
             vm.ctx.new_list(items).into()
         }
         #[pymethod]
-        fn to_cols_array_2d(&self, vm: &VirtualMachine) -> PyObjectRef {
-            let cols = self.0.to_cols_array_2d();
+        fn to_cols_array_2d(zelf: &Py<Self>, vm: &VirtualMachine) -> PyObjectRef {
+            let cols = zelf.0.to_cols_array_2d();
             let rows = cols
                 .iter()
                 .map(|col| {
@@ -743,120 +743,140 @@ mod rustpython_impl {
         }
 
         #[pymethod]
-        fn col(&self, index: usize, vm: &VirtualMachine) -> PyResult<PyDVec3> {
+        fn col(zelf: &Py<Self>, index: usize, vm: &VirtualMachine) -> PyResult<PyDVec3> {
             if index < 3 {
-                Ok(PyDVec3(self.0.col(index)))
+                Ok(PyDVec3(zelf.0.col(index)))
             } else {
                 Err(vm.new_index_error("column index out of range".to_owned()))
             }
         }
         #[pymethod]
-        fn row(&self, index: usize, vm: &VirtualMachine) -> PyResult<PyDVec3> {
+        fn row(zelf: &Py<Self>, index: usize, vm: &VirtualMachine) -> PyResult<PyDVec3> {
             if index < 3 {
-                Ok(PyDVec3(self.0.row(index)))
+                Ok(PyDVec3(zelf.0.row(index)))
             } else {
                 Err(vm.new_index_error("row index out of range".to_owned()))
             }
         }
         #[pymethod]
-        fn diagonal(&self) -> PyDVec3 {
-            PyDVec3(self.0.diagonal())
+        fn diagonal(zelf: &Py<Self>) -> PyDVec3 {
+            PyDVec3(zelf.0.diagonal())
         }
         #[pymethod]
-        fn determinant(&self) -> f64 {
-            self.0.determinant()
+        fn determinant(zelf: &Py<Self>) -> f64 {
+            zelf.0.determinant()
         }
         #[pymethod]
-        fn transpose(&self) -> Self {
-            Self(self.0.transpose())
+        fn transpose(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.transpose())
         }
         #[pymethod]
-        fn inverse(&self) -> Self {
-            Self(self.0.inverse())
+        fn inverse(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.inverse())
         }
         #[pymethod]
-        fn try_inverse(&self) -> Option<Self> {
-            self.0.try_inverse().map(Self)
+        fn try_inverse(zelf: &Py<Self>) -> Option<Self> {
+            zelf.0.try_inverse().map(Self)
         }
         #[pymethod]
-        fn inverse_or_zero(&self) -> Self {
-            Self(self.0.inverse_or_zero())
+        fn inverse_or_zero(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.inverse_or_zero())
         }
         #[pymethod]
-        fn to_euler(&self, order: PyObjectRef, vm: &VirtualMachine) -> PyResult<(f64, f64, f64)> {
-            Ok(self.0.to_euler(extract_euler(&order, vm)?))
+        fn to_euler(
+            zelf: &Py<Self>,
+            order: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<(f64, f64, f64)> {
+            Ok(zelf.0.to_euler(extract_euler(&order, vm)?))
         }
         #[pymethod]
-        fn mul_vec3(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<PyDVec3> {
-            Ok(PyDVec3(self.0.mul_vec3(extract_vec3(&rhs, vm)?)))
+        fn mul_vec3(zelf: &Py<Self>, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<PyDVec3> {
+            Ok(PyDVec3(zelf.0.mul_vec3(extract_vec3(&rhs, vm)?)))
         }
         #[pymethod]
-        fn mul_transpose_vec3(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<PyDVec3> {
-            Ok(PyDVec3(self.0.mul_transpose_vec3(extract_vec3(&rhs, vm)?)))
+        fn mul_transpose_vec3(
+            zelf: &Py<Self>,
+            rhs: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<PyDVec3> {
+            Ok(PyDVec3(zelf.0.mul_transpose_vec3(extract_vec3(&rhs, vm)?)))
         }
         #[pymethod]
-        fn transform_point2(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<PyDVec2> {
-            Ok(PyDVec2(self.0.transform_point2(extract_vec2(&rhs, vm)?)))
+        fn transform_point2(
+            zelf: &Py<Self>,
+            rhs: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<PyDVec2> {
+            Ok(PyDVec2(zelf.0.transform_point2(extract_vec2(&rhs, vm)?)))
         }
         #[pymethod]
-        fn transform_vector2(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<PyDVec2> {
-            Ok(PyDVec2(self.0.transform_vector2(extract_vec2(&rhs, vm)?)))
+        fn transform_vector2(
+            zelf: &Py<Self>,
+            rhs: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<PyDVec2> {
+            Ok(PyDVec2(zelf.0.transform_vector2(extract_vec2(&rhs, vm)?)))
         }
         #[pymethod]
-        fn mul_mat3(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+        fn mul_mat3(zelf: &Py<Self>, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
             if let Some(m) = rhs.downcast_ref::<PyDMat3>() {
-                Ok(Self(self.0.mul_mat3(&m.0)))
+                Ok(Self(zelf.0.mul_mat3(&m.0)))
             } else {
                 Err(vm.new_type_error("expected Mat3".to_owned()))
             }
         }
         #[pymethod]
-        fn add_mat3(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+        fn add_mat3(zelf: &Py<Self>, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
             if let Some(m) = rhs.downcast_ref::<PyDMat3>() {
-                Ok(Self(self.0.add_mat3(&m.0)))
+                Ok(Self(zelf.0.add_mat3(&m.0)))
             } else {
                 Err(vm.new_type_error("expected Mat3".to_owned()))
             }
         }
         #[pymethod]
-        fn sub_mat3(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+        fn sub_mat3(zelf: &Py<Self>, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
             if let Some(m) = rhs.downcast_ref::<PyDMat3>() {
-                Ok(Self(self.0.sub_mat3(&m.0)))
+                Ok(Self(zelf.0.sub_mat3(&m.0)))
             } else {
                 Err(vm.new_type_error("expected Mat3".to_owned()))
             }
         }
         #[pymethod]
-        fn mul_scalar(&self, rhs: f64) -> Self {
-            Self(self.0.mul_scalar(rhs))
+        fn mul_scalar(zelf: &Py<Self>, rhs: f64) -> Self {
+            Self(zelf.0.mul_scalar(rhs))
         }
         #[pymethod]
-        fn div_scalar(&self, rhs: f64) -> Self {
-            Self(self.0.div_scalar(rhs))
+        fn div_scalar(zelf: &Py<Self>, rhs: f64) -> Self {
+            Self(zelf.0.div_scalar(rhs))
         }
         #[pymethod]
-        fn mul_diagonal_scale(&self, scale: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.mul_diagonal_scale(extract_vec3(&scale, vm)?)))
+        fn mul_diagonal_scale(
+            zelf: &Py<Self>,
+            scale: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<Self> {
+            Ok(Self(zelf.0.mul_diagonal_scale(extract_vec3(&scale, vm)?)))
         }
         #[pymethod]
-        fn abs(&self) -> Self {
-            Self(self.0.abs())
+        fn abs(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.abs())
         }
         #[pymethod]
-        fn recip(&self) -> Self {
-            Self(self.0.recip())
+        fn recip(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.recip())
         }
         #[pymethod]
-        fn is_finite(&self) -> bool {
-            self.0.is_finite()
+        fn is_finite(zelf: &Py<Self>) -> bool {
+            zelf.0.is_finite()
         }
         #[pymethod]
-        fn is_nan(&self) -> bool {
-            self.0.is_nan()
+        fn is_nan(zelf: &Py<Self>) -> bool {
+            zelf.0.is_nan()
         }
         #[pymethod]
         fn abs_diff_eq(
-            &self,
+            zelf: &Py<Self>,
             rhs: PyObjectRef,
             max_abs_diff: f64,
             vm: &VirtualMachine,
@@ -864,12 +884,12 @@ mod rustpython_impl {
             let m = rhs
                 .downcast_ref::<PyDMat3>()
                 .ok_or_else(|| vm.new_type_error("expected Mat3".to_owned()))?;
-            Ok(self.0.abs_diff_eq(m.0, max_abs_diff))
+            Ok(zelf.0.abs_diff_eq(m.0, max_abs_diff))
         }
 
         #[pymethod]
-        fn to_json(&self, vm: &VirtualMachine) -> PyResult<String> {
-            crate::rp_serde::to_json(&self.0, vm)
+        fn to_json(zelf: &Py<Self>, vm: &VirtualMachine) -> PyResult<String> {
+            crate::rp_serde::to_json(&zelf.0, vm)
         }
         #[pystaticmethod]
         fn from_json(json: String, vm: &VirtualMachine) -> PyResult<Self> {
@@ -880,8 +900,8 @@ mod rustpython_impl {
             crate::rp_serde::try_from_json::<DMat3>(&json).map(Self)
         }
         #[pymethod]
-        fn to_dict(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            crate::rp_serde::to_dict(&self.0, vm)
+        fn to_dict(zelf: &Py<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::to_dict(&zelf.0, vm)
         }
         #[pystaticmethod]
         fn from_dict(obj: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
@@ -893,8 +913,8 @@ mod rustpython_impl {
         }
 
         #[pymethod]
-        fn __getnewargs_ex__(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            crate::rp_serde::getnewargs_ex(&self.0, vm)
+        fn __getnewargs_ex__(zelf: &Py<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::getnewargs_ex(&zelf.0, vm)
         }
         #[pygetset]
         fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {

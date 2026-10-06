@@ -153,24 +153,24 @@ mod rustpython_impl {
     #[pyclass(with(Constructor, Representable))]
     impl PyNearest {
         #[pygetset]
-        fn t(&self) -> f64 {
-            self.0.t as f64
+        fn t(zelf: &Py<Self>) -> f64 {
+            zelf.0.t as f64
         }
         #[pygetset]
-        fn point(&self) -> PyDVec3 {
-            vp(self.0.point)
+        fn point(zelf: &Py<Self>) -> PyDVec3 {
+            vp(zelf.0.point)
         }
         #[pygetset]
-        fn dist_sq(&self) -> f64 {
-            self.0.dist_sq as f64
+        fn dist_sq(zelf: &Py<Self>) -> f64 {
+            zelf.0.dist_sq as f64
         }
         #[pymethod]
-        fn distance(&self) -> f64 {
-            (self.0.dist_sq as f64).sqrt()
+        fn distance(zelf: &Py<Self>) -> f64 {
+            (zelf.0.dist_sq as f64).sqrt()
         }
         #[pymethod]
         fn abs_diff_eq(
-            &self,
+            zelf: &Py<Self>,
             other: PyObjectRef,
             max_abs_diff: f64,
             vm: &VirtualMachine,
@@ -179,14 +179,14 @@ mod rustpython_impl {
                 .downcast_ref::<PyNearest>()
                 .ok_or_else(|| vm.new_type_error("expected Nearest".to_owned()))?;
             Ok(approx::AbsDiffEq::abs_diff_eq(
-                &self.0,
+                &zelf.0,
                 &o.0,
                 max_abs_diff as f32,
             ))
         }
         #[pymethod]
-        fn __getnewargs_ex__(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            crate::rp_serde::getnewargs_ex(&self.0, vm)
+        fn __getnewargs_ex__(zelf: &Py<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::getnewargs_ex(&zelf.0, vm)
         }
         #[pygetset]
         fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {

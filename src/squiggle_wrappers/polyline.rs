@@ -140,8 +140,8 @@ mod rustpython_impl {
     #[pyclass(with(Constructor, Representable))]
     impl PyPolyline {
         #[pygetset]
-        fn points(&self, vm: &VirtualMachine) -> PyObjectRef {
-            let items: Vec<PyObjectRef> = self
+        fn points(zelf: &Py<Self>, vm: &VirtualMachine) -> PyObjectRef {
+            let items: Vec<PyObjectRef> = zelf
                 .0
                 .points
                 .iter()
@@ -150,12 +150,12 @@ mod rustpython_impl {
             vm.ctx.new_list(items).into()
         }
         #[pymethod]
-        fn control_points(&self, vm: &VirtualMachine) -> PyObjectRef {
-            self.points(vm)
+        fn control_points(zelf: &Py<Self>, vm: &VirtualMachine) -> PyObjectRef {
+            Self::points(zelf, vm)
         }
         #[pymethod]
-        fn segments(&self, vm: &VirtualMachine) -> PyObjectRef {
-            let items: Vec<PyObjectRef> = self
+        fn segments(zelf: &Py<Self>, vm: &VirtualMachine) -> PyObjectRef {
+            let items: Vec<PyObjectRef> = zelf
                 .0
                 .segments()
                 .map(|s| PyLineSegment(s).into_pyobject(vm))
@@ -164,146 +164,150 @@ mod rustpython_impl {
         }
 
         #[pymethod]
-        fn domain(&self) -> PyInterval {
-            crate::squiggle_wrappers::domain(&self.0)
+        fn domain(zelf: &Py<Self>) -> PyInterval {
+            crate::squiggle_wrappers::domain(&zelf.0)
         }
         #[pymethod]
-        fn point(&self, t: f64) -> PyDVec3 {
-            crate::squiggle_wrappers::point(&self.0, t as f32)
+        fn point(zelf: &Py<Self>, t: f64) -> PyDVec3 {
+            crate::squiggle_wrappers::point(&zelf.0, t as f32)
         }
         #[pymethod]
-        fn velocity(&self, t: f64) -> PyDVec3 {
-            crate::squiggle_wrappers::velocity(&self.0, t as f32)
+        fn velocity(zelf: &Py<Self>, t: f64) -> PyDVec3 {
+            crate::squiggle_wrappers::velocity(&zelf.0, t as f32)
         }
         #[pymethod]
-        fn acceleration(&self, t: f64) -> PyDVec3 {
-            crate::squiggle_wrappers::acceleration(&self.0, t as f32)
+        fn acceleration(zelf: &Py<Self>, t: f64) -> PyDVec3 {
+            crate::squiggle_wrappers::acceleration(&zelf.0, t as f32)
         }
         #[pymethod]
-        fn tangent(&self, t: f64) -> PyDVec3 {
-            crate::squiggle_wrappers::tangent(&self.0, t as f32)
+        fn tangent(zelf: &Py<Self>, t: f64) -> PyDVec3 {
+            crate::squiggle_wrappers::tangent(&zelf.0, t as f32)
         }
         #[pymethod]
-        fn normal(&self, t: f64) -> PyDVec3 {
-            crate::squiggle_wrappers::normal(&self.0, t as f32)
+        fn normal(zelf: &Py<Self>, t: f64) -> PyDVec3 {
+            crate::squiggle_wrappers::normal(&zelf.0, t as f32)
         }
         #[pymethod]
-        fn binormal(&self, t: f64) -> PyDVec3 {
-            crate::squiggle_wrappers::binormal(&self.0, t as f32)
+        fn binormal(zelf: &Py<Self>, t: f64) -> PyDVec3 {
+            crate::squiggle_wrappers::binormal(&zelf.0, t as f32)
         }
         #[pymethod]
-        fn curvature(&self, t: f64) -> f64 {
-            crate::squiggle_wrappers::curvature(&self.0, t as f32)
+        fn curvature(zelf: &Py<Self>, t: f64) -> f64 {
+            crate::squiggle_wrappers::curvature(&zelf.0, t as f32)
         }
         #[pymethod]
-        fn point_clamped(&self, t: f64) -> PyDVec3 {
-            crate::squiggle_wrappers::point_clamped(&self.0, t as f32)
+        fn point_clamped(zelf: &Py<Self>, t: f64) -> PyDVec3 {
+            crate::squiggle_wrappers::point_clamped(&zelf.0, t as f32)
         }
         #[pymethod]
-        fn endpoints(&self) -> (PyDVec3, PyDVec3) {
-            crate::squiggle_wrappers::endpoints(&self.0)
+        fn endpoints(zelf: &Py<Self>) -> (PyDVec3, PyDVec3) {
+            crate::squiggle_wrappers::endpoints(&zelf.0)
         }
         #[pymethod]
-        fn length(&self) -> f64 {
-            crate::squiggle_wrappers::length(&self.0)
+        fn length(zelf: &Py<Self>) -> f64 {
+            crate::squiggle_wrappers::length(&zelf.0)
         }
         #[pymethod]
-        fn aabb(&self, vm: &VirtualMachine) -> PyResult<crate::wreck_wrappers::PyCuboid> {
-            crate::squiggle_wrappers::try_aabb(&self.0).map_err(|e| vm.new_value_error(e))
+        fn aabb(zelf: &Py<Self>, vm: &VirtualMachine) -> PyResult<crate::wreck_wrappers::PyCuboid> {
+            crate::squiggle_wrappers::try_aabb(&zelf.0).map_err(|e| vm.new_value_error(e))
         }
         #[pymethod]
-        fn nearest(&self, query: PyObjectRef, vm: &VirtualMachine) -> PyResult<PyNearest> {
+        fn nearest(
+            zelf: &Py<Self>,
+            query: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<PyNearest> {
             Ok(crate::squiggle_wrappers::nearest(
-                &self.0,
+                &zelf.0,
                 dv3(extract_vec3(&query, vm)?),
             ))
         }
         #[pymethod]
-        fn distance(&self, query: PyObjectRef, vm: &VirtualMachine) -> PyResult<f64> {
+        fn distance(zelf: &Py<Self>, query: PyObjectRef, vm: &VirtualMachine) -> PyResult<f64> {
             Ok(crate::squiggle_wrappers::distance(
-                &self.0,
+                &zelf.0,
                 dv3(extract_vec3(&query, vm)?),
             ))
         }
         #[pymethod]
-        fn distance_sq(&self, query: PyObjectRef, vm: &VirtualMachine) -> PyResult<f64> {
+        fn distance_sq(zelf: &Py<Self>, query: PyObjectRef, vm: &VirtualMachine) -> PyResult<f64> {
             Ok(crate::squiggle_wrappers::distance_sq(
-                &self.0,
+                &zelf.0,
                 dv3(extract_vec3(&query, vm)?),
             ))
         }
 
         #[pymethod]
-        fn scaled(&self, factor: f64) -> Self {
-            Self(squiggle::Transform::scaled(&self.0, factor as f32))
+        fn scaled(zelf: &Py<Self>, factor: f64) -> Self {
+            Self(squiggle::Transform::scaled(&zelf.0, factor as f32))
         }
         #[pymethod]
-        fn translated(&self, offset: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+        fn translated(zelf: &Py<Self>, offset: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
             Ok(Self(squiggle::Transform::translated(
-                &self.0,
+                &zelf.0,
                 dv3(extract_vec3(&offset, vm)?),
             )))
         }
         #[pymethod]
-        fn rotated_mat(&self, mat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+        fn rotated_mat(zelf: &Py<Self>, mat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
             Ok(Self(squiggle::Transform::rotated_mat(
-                &self.0,
+                &zelf.0,
                 extract_mat3(&mat, vm)?.as_mat3(),
             )))
         }
         #[pymethod]
-        fn rotated_quat(&self, quat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+        fn rotated_quat(zelf: &Py<Self>, quat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
             Ok(Self(squiggle::Transform::rotated(
-                &self.0,
+                &zelf.0,
                 extract_quat(&quat, vm)?.as_quat(),
             )))
         }
         #[pymethod]
-        fn transformed(&self, tf: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+        fn transformed(zelf: &Py<Self>, tf: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
             Ok(Self(squiggle::Transform::transformed(
-                &self.0,
+                &zelf.0,
                 glam::Affine3A::from(extract_affine3(&tf, vm)?.as_affine3()),
             )))
         }
 
         #[pymethod]
-        fn subcurve(&self, t0: f64, t1: f64) -> Self {
-            Self(squiggle::Trim::subcurve(&self.0, t0 as f32, t1 as f32))
+        fn subcurve(zelf: &Py<Self>, t0: f64, t1: f64) -> Self {
+            Self(squiggle::Trim::subcurve(&zelf.0, t0 as f32, t1 as f32))
         }
         #[pymethod]
-        fn reversed(&self) -> Self {
-            Self(squiggle::Trim::reversed(&self.0))
+        fn reversed(zelf: &Py<Self>) -> Self {
+            Self(squiggle::Trim::reversed(&zelf.0))
         }
         #[pymethod]
-        fn truncate_start(&self, t0: f64) -> Self {
-            Self(squiggle::Trim::truncate_start(&self.0, t0 as f32))
+        fn truncate_start(zelf: &Py<Self>, t0: f64) -> Self {
+            Self(squiggle::Trim::truncate_start(&zelf.0, t0 as f32))
         }
         #[pymethod]
-        fn truncate_end(&self, t1: f64) -> Self {
-            Self(squiggle::Trim::truncate_end(&self.0, t1 as f32))
+        fn truncate_end(zelf: &Py<Self>, t1: f64) -> Self {
+            Self(squiggle::Trim::truncate_end(&zelf.0, t1 as f32))
         }
         #[pymethod]
-        fn split_at(&self, t: f64) -> (Self, Self) {
-            let (a, b) = squiggle::Trim::split_at(&self.0, t as f32);
+        fn split_at(zelf: &Py<Self>, t: f64) -> (Self, Self) {
+            let (a, b) = squiggle::Trim::split_at(&zelf.0, t as f32);
             (Self(a), Self(b))
         }
 
         #[pymethod]
-        fn arc_length_to(&self, t: f64) -> f64 {
-            crate::squiggle_wrappers::arc_length_to(&self.0, t as f32)
+        fn arc_length_to(zelf: &Py<Self>, t: f64) -> f64 {
+            crate::squiggle_wrappers::arc_length_to(&zelf.0, t as f32)
         }
         #[pymethod]
-        fn t_at_distance(&self, s: f64) -> f64 {
-            crate::squiggle_wrappers::t_at_distance(&self.0, s as f32)
+        fn t_at_distance(zelf: &Py<Self>, s: f64) -> f64 {
+            crate::squiggle_wrappers::t_at_distance(&zelf.0, s as f32)
         }
         #[pymethod]
-        fn point_at_distance(&self, s: f64) -> PyDVec3 {
-            crate::squiggle_wrappers::point_at_distance(&self.0, s as f32)
+        fn point_at_distance(zelf: &Py<Self>, s: f64) -> PyDVec3 {
+            crate::squiggle_wrappers::point_at_distance(&zelf.0, s as f32)
         }
 
         #[pymethod]
         fn abs_diff_eq(
-            &self,
+            zelf: &Py<Self>,
             other: PyObjectRef,
             max_abs_diff: f64,
             vm: &VirtualMachine,
@@ -312,14 +316,14 @@ mod rustpython_impl {
                 .downcast_ref::<PyPolyline>()
                 .ok_or_else(|| vm.new_type_error("expected Polyline".to_owned()))?;
             Ok(approx::AbsDiffEq::abs_diff_eq(
-                &self.0,
+                &zelf.0,
                 &o.0,
                 max_abs_diff as f32,
             ))
         }
         #[pymethod]
-        fn __getnewargs_ex__(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            crate::rp_serde::getnewargs_ex(&self.0, vm)
+        fn __getnewargs_ex__(zelf: &Py<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::getnewargs_ex(&zelf.0, vm)
         }
         #[pygetset]
         fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {

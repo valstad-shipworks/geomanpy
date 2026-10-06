@@ -178,7 +178,7 @@ mod rustpython_impl {
             let mut planes = positional.next();
             let mut vertices = positional.next();
             for (name, value) in args.kwargs {
-                let slot = match name.as_str() {
+                let slot = match name.as_str().unwrap_or_default() {
                     "planes" => &mut planes,
                     "vertices" => &mut vertices,
                     _ => {
@@ -233,12 +233,12 @@ mod rustpython_impl {
             )))
         }
         #[pymethod]
-        fn obb(&self) -> PyCuboid {
-            PyCuboid(self.0.obb)
+        fn obb(zelf: &Py<Self>) -> PyCuboid {
+            PyCuboid(zelf.0.obb)
         }
         #[pygetset]
-        fn vertices(&self, vm: &VirtualMachine) -> PyObjectRef {
-            let items: Vec<PyObjectRef> = self
+        fn vertices(zelf: &Py<Self>, vm: &VirtualMachine) -> PyObjectRef {
+            let items: Vec<PyObjectRef> = zelf
                 .0
                 .vertices
                 .iter()
@@ -255,8 +255,8 @@ mod rustpython_impl {
             vm.ctx.new_list(items).into()
         }
         #[pygetset]
-        fn planes(&self, vm: &VirtualMachine) -> PyObjectRef {
-            let items: Vec<PyObjectRef> = self
+        fn planes(zelf: &Py<Self>, vm: &VirtualMachine) -> PyObjectRef {
+            let items: Vec<PyObjectRef> = zelf
                 .0
                 .planes
                 .iter()
@@ -279,55 +279,59 @@ mod rustpython_impl {
         }
 
         #[pymethod]
-        fn scaled(&self, factor: f64) -> Self {
-            Self(self.0.scaled_d(factor))
+        fn scaled(zelf: &Py<Self>, factor: f64) -> Self {
+            Self(zelf.0.scaled_d(factor))
         }
         #[pymethod]
-        fn translated(&self, offset: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.translated_d(extract_vec3(&offset, vm)?)))
+        fn translated(zelf: &Py<Self>, offset: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.translated_d(extract_vec3(&offset, vm)?)))
         }
         #[pymethod]
-        fn rotated_mat(&self, mat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.rotated_mat_d(extract_mat3(&mat, vm)?)))
+        fn rotated_mat(zelf: &Py<Self>, mat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.rotated_mat_d(extract_mat3(&mat, vm)?)))
         }
         #[pymethod]
-        fn rotated_quat(&self, quat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.rotated_quat_d(extract_quat(&quat, vm)?)))
+        fn rotated_quat(zelf: &Py<Self>, quat: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.rotated_quat_d(extract_quat(&quat, vm)?)))
         }
         #[pymethod]
-        fn transformed(&self, tf: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
-            Ok(Self(self.0.transformed_d(extract_affine3(&tf, vm)?)))
-        }
-
-        #[pymethod]
-        fn broadphase(&self) -> PySphere {
-            PySphere(self.0.broadphase())
-        }
-        #[pymethod]
-        fn aabb(&self) -> PyCuboid {
-            PyCuboid(self.0.aabb())
+        fn transformed(zelf: &Py<Self>, tf: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
+            Ok(Self(zelf.0.transformed_d(extract_affine3(&tf, vm)?)))
         }
 
         #[pymethod]
-        fn collides(&self, other: PyObjectRef, vm: &VirtualMachine) -> PyResult<bool> {
-            shape_collides(&self.0, &other, vm)
+        fn broadphase(zelf: &Py<Self>) -> PySphere {
+            PySphere(zelf.0.broadphase())
         }
         #[pymethod]
-        fn stretch(&self, translation: PyObjectRef, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+        fn aabb(zelf: &Py<Self>) -> PyCuboid {
+            PyCuboid(zelf.0.aabb())
+        }
+
+        #[pymethod]
+        fn collides(zelf: &Py<Self>, other: PyObjectRef, vm: &VirtualMachine) -> PyResult<bool> {
+            shape_collides(&zelf.0, &other, vm)
+        }
+        #[pymethod]
+        fn stretch(
+            zelf: &Py<Self>,
+            translation: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<PyObjectRef> {
             let items: Vec<PyObjectRef> = vec![
-                PyConvexPolytope(self.0.stretch(dv3(extract_vec3(&translation, vm)?)))
+                PyConvexPolytope(zelf.0.stretch(dv3(extract_vec3(&translation, vm)?)))
                     .into_pyobject(vm),
             ];
             Ok(vm.ctx.new_list(items).into())
         }
         #[pymethod]
         fn swept(
-            &self,
+            zelf: &Py<Self>,
             translation: PyObjectRef,
             plane_offset: OptionalArg<f64>,
             vm: &VirtualMachine,
         ) -> PyResult<Self> {
-            let mut poly = self.0.stretch(dv3(extract_vec3(&translation, vm)?));
+            let mut poly = zelf.0.stretch(dv3(extract_vec3(&translation, vm)?));
             let off = plane_offset.unwrap_or(0.0) as f32;
             for (_, d) in poly.planes.iter_mut() {
                 *d -= off;
@@ -336,7 +340,7 @@ mod rustpython_impl {
         }
         #[pymethod]
         fn abs_diff_eq(
-            &self,
+            zelf: &Py<Self>,
             other: PyObjectRef,
             max_abs_diff: f64,
             vm: &VirtualMachine,
@@ -345,14 +349,14 @@ mod rustpython_impl {
                 .downcast_ref::<PyConvexPolytope>()
                 .ok_or_else(|| vm.new_type_error("expected ConvexPolytope".to_owned()))?;
             Ok(approx::AbsDiffEq::abs_diff_eq(
-                &self.0,
+                &zelf.0,
                 &o.0,
                 max_abs_diff as f32,
             ))
         }
         #[pymethod]
-        fn __getnewargs_ex__(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            crate::rp_serde::getnewargs_ex(&self.0, vm)
+        fn __getnewargs_ex__(zelf: &Py<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::getnewargs_ex(&zelf.0, vm)
         }
         #[pygetset]
         fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {

@@ -1,6 +1,6 @@
 [package]
 name = "geomanpy"
-version = "0.6.1"
+version = "0.7.0"
 edition = "2024"
 license = "Apache-2.0"
 authors = ["Bowan Foryt <bowan@valstad.com>"]
@@ -53,21 +53,21 @@ serde_json = "1.0"
 serde-pickle = "1.2"
 
 numpy = { version = "0.29.0", optional = true }
-pyo3 = { version = "0.29.0", features = ["multiple-pymethods"], optional = true }
+pyo3 = { version = "0.29.3", features = ["multiple-pymethods"], optional = true }
 pythonize = { version = "0.29.0", optional = true }
 
-rustpython-vm = { version = "0.5.0", optional = true, default-features = false }
-rumpy = { version = "0.1.0", optional = true }
+rustpython-vm = { version = "0.6.0", optional = true, default-features = false }
+rumpy = { version = "0.2.0", optional = true }
 ndarray = { version = "0.17.2", optional = true }
 squiggle = { version = "1.0.0", features = ["serde", "approx"] }
 
 [dev-dependencies]
-pyo3 = { version = "0.29.0", features = ["auto-initialize"] }
-rustpython-vm = { version = "0.5.0", default-features = false, features = ["compiler"] }
+pyo3 = { version = "0.29.3", features = ["auto-initialize"] }
+rustpython-vm = { version = "0.6.0", default-features = false, features = ["compiler"] }
 
 [profile.release]
 opt-level = 2
 lto = true
 
 [target.'cfg(windows)'.dependencies]
-pyo3 = { version = "0.29.0", optional = true, features = ["generate-import-lib"] }
+pyo3 = { version = "0.29.3", optional = true, features = ["generate-import-lib"] }

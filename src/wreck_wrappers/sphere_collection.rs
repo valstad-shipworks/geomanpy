@@ -161,12 +161,12 @@ mod rustpython_impl {
     #[pyclass(with(Constructor, Representable, AsMapping))]
     impl PySphereCollection {
         #[pymethod]
-        fn len(&self) -> usize {
-            self.0.read().len()
+        fn len(zelf: &Py<Self>) -> usize {
+            zelf.0.read().len()
         }
         #[pymethod]
-        fn is_empty(&self) -> bool {
-            self.0.read().is_empty()
+        fn is_empty(zelf: &Py<Self>) -> bool {
+            zelf.0.read().is_empty()
         }
         #[pystaticmethod]
         fn with_capacity(cap: usize) -> Self {
@@ -187,42 +187,50 @@ mod rustpython_impl {
         }
         /// Get the sphere at index `i`.
         #[pymethod]
-        fn get(&self, i: usize, vm: &VirtualMachine) -> PyResult<PySphere> {
-            let inner = self.0.read();
+        fn get(zelf: &Py<Self>, i: usize, vm: &VirtualMachine) -> PyResult<PySphere> {
+            let inner = zelf.0.read();
             if i >= inner.len() {
                 return Err(vm.new_index_error("index out of range".to_owned()));
             }
             Ok(PySphere(inner.get(i)))
         }
         #[pymethod]
-        fn any_collides_sphere(&self, sphere: PyObjectRef, vm: &VirtualMachine) -> PyResult<bool> {
+        fn any_collides_sphere(
+            zelf: &Py<Self>,
+            sphere: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<bool> {
             let s = sphere
                 .downcast_ref::<PySphere>()
                 .ok_or_else(|| vm.new_type_error("expected Sphere".to_owned()))?;
-            Ok(self.0.read().any_collides_sphere(&s.0))
+            Ok(zelf.0.read().any_collides_sphere(&s.0))
         }
         #[pymethod]
-        fn count_overlaps(&self, sphere: PyObjectRef, vm: &VirtualMachine) -> PyResult<usize> {
+        fn count_overlaps(
+            zelf: &Py<Self>,
+            sphere: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<usize> {
             let s = sphere
                 .downcast_ref::<PySphere>()
                 .ok_or_else(|| vm.new_type_error("expected Sphere".to_owned()))?;
-            Ok(self.0.read().count_overlaps(&s.0))
+            Ok(zelf.0.read().count_overlaps(&s.0))
         }
         #[pymethod]
-        fn push(&self, sphere: PyObjectRef, vm: &VirtualMachine) -> PyResult<()> {
+        fn push(zelf: &Py<Self>, sphere: PyObjectRef, vm: &VirtualMachine) -> PyResult<()> {
             let s = sphere
                 .downcast_ref::<PySphere>()
                 .ok_or_else(|| vm.new_type_error("expected Sphere".to_owned()))?;
-            self.0.write().push(s.0);
+            zelf.0.write().push(s.0);
             Ok(())
         }
         #[pymethod]
-        fn clear(&self) {
-            self.0.write().clear();
+        fn clear(zelf: &Py<Self>) {
+            zelf.0.write().clear();
         }
         #[pymethod]
         fn abs_diff_eq(
-            &self,
+            zelf: &Py<Self>,
             other: PyObjectRef,
             max_abs_diff: f64,
             vm: &VirtualMachine,
@@ -230,8 +238,8 @@ mod rustpython_impl {
             let o = other
                 .downcast_ref::<PySphereCollection>()
                 .ok_or_else(|| vm.new_type_error("expected SphereCollection".to_owned()))?;
-            let lhs = self.0.read();
-            if std::ptr::eq(&self.0, &o.0) {
+            let lhs = zelf.0.read();
+            if std::ptr::eq(&zelf.0, &o.0) {
                 return Ok(approx::AbsDiffEq::abs_diff_eq(
                     &*lhs,
                     &*lhs,
@@ -245,8 +253,8 @@ mod rustpython_impl {
             ))
         }
         #[pymethod]
-        fn __getnewargs_ex__(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            crate::rp_serde::getnewargs_ex(&*self.0.read(), vm)
+        fn __getnewargs_ex__(zelf: &Py<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::getnewargs_ex(&*zelf.0.read(), vm)
         }
         #[pygetset]
         fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {

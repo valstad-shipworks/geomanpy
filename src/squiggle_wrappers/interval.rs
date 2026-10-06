@@ -144,36 +144,36 @@ mod rustpython_impl {
             Self(Interval::ALL)
         }
         #[pygetset]
-        fn min(&self) -> f64 {
-            self.0.min as f64
+        fn min(zelf: &Py<Self>) -> f64 {
+            zelf.0.min as f64
         }
         #[pygetset]
-        fn max(&self) -> f64 {
-            self.0.max as f64
+        fn max(zelf: &Py<Self>) -> f64 {
+            zelf.0.max as f64
         }
         #[pymethod]
-        fn span(&self) -> f64 {
-            self.0.span() as f64
+        fn span(zelf: &Py<Self>) -> f64 {
+            zelf.0.span() as f64
         }
         #[pymethod]
-        fn clamp(&self, t: f64) -> f64 {
-            self.0.clamp(t as f32) as f64
+        fn clamp(zelf: &Py<Self>, t: f64) -> f64 {
+            zelf.0.clamp(t as f32) as f64
         }
         #[pymethod]
-        fn lerp(&self, s: f64) -> f64 {
-            self.0.lerp(s as f32) as f64
+        fn lerp(zelf: &Py<Self>, s: f64) -> f64 {
+            zelf.0.lerp(s as f32) as f64
         }
         #[pymethod]
-        fn contains(&self, t: f64) -> bool {
-            self.0.contains(t as f32)
+        fn contains(zelf: &Py<Self>, t: f64) -> bool {
+            zelf.0.contains(t as f32)
         }
         #[pymethod]
-        fn is_finite(&self) -> bool {
-            self.0.is_finite()
+        fn is_finite(zelf: &Py<Self>) -> bool {
+            zelf.0.is_finite()
         }
         #[pymethod]
         fn abs_diff_eq(
-            &self,
+            zelf: &Py<Self>,
             other: PyObjectRef,
             max_abs_diff: f64,
             vm: &VirtualMachine,
@@ -182,14 +182,17 @@ mod rustpython_impl {
                 .downcast_ref::<PyInterval>()
                 .ok_or_else(|| vm.new_type_error("expected Interval".to_owned()))?;
             Ok(approx::AbsDiffEq::abs_diff_eq(
-                &self.0,
+                &zelf.0,
                 &o.0,
                 max_abs_diff as f32,
             ))
         }
         #[pymethod]
-        fn __getnewargs_ex__(&self, vm: &VirtualMachine) -> PyResult<rustpython_vm::PyObjectRef> {
-            crate::rp_serde::getnewargs_ex(&self.0, vm)
+        fn __getnewargs_ex__(
+            zelf: &Py<Self>,
+            vm: &VirtualMachine,
+        ) -> PyResult<rustpython_vm::PyObjectRef> {
+            crate::rp_serde::getnewargs_ex(&zelf.0, vm)
         }
         #[pygetset]
         fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {

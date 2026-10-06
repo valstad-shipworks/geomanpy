@@ -438,12 +438,12 @@ mod rustpython_impl {
     #[pyclass(with(Constructor, Representable, AsNumber, Comparable, Hashable))]
     impl PyDAffine3 {
         #[pygetset]
-        fn matrix3(&self) -> PyDMat3 {
-            PyDMat3(self.0.matrix3)
+        fn matrix3(zelf: &Py<Self>) -> PyDMat3 {
+            PyDMat3(zelf.0.matrix3)
         }
         #[pygetset]
-        fn translation(&self) -> PyDVec3 {
-            PyDVec3(self.0.translation)
+        fn translation(zelf: &Py<Self>) -> PyDVec3 {
+            PyDVec3(zelf.0.translation)
         }
 
         #[pystaticmethod]
@@ -637,22 +637,22 @@ mod rustpython_impl {
         }
 
         #[pymethod]
-        fn to_numpy(&self, vm: &VirtualMachine) -> PyObjectRef {
+        fn to_numpy(zelf: &Py<Self>, vm: &VirtualMachine) -> PyObjectRef {
             crate::glam_wrappers::pyndarray_from_rows(
-                crate::glam_wrappers::transpose_array2_rp(self.0.to_cols_array_2d()),
+                crate::glam_wrappers::transpose_array2_rp(zelf.0.to_cols_array_2d()),
                 vm,
             )
         }
         #[pymethod]
-        fn __array__(&self, vm: &VirtualMachine) -> PyObjectRef {
+        fn __array__(zelf: &Py<Self>, vm: &VirtualMachine) -> PyObjectRef {
             crate::glam_wrappers::pyndarray_from_rows(
-                crate::glam_wrappers::transpose_array2_rp(self.0.to_cols_array_2d()),
+                crate::glam_wrappers::transpose_array2_rp(zelf.0.to_cols_array_2d()),
                 vm,
             )
         }
         #[pymethod]
-        fn to_cols_array(&self, vm: &VirtualMachine) -> PyObjectRef {
-            let items = self
+        fn to_cols_array(zelf: &Py<Self>, vm: &VirtualMachine) -> PyObjectRef {
+            let items = zelf
                 .0
                 .to_cols_array()
                 .iter()
@@ -661,8 +661,8 @@ mod rustpython_impl {
             vm.ctx.new_list(items).into()
         }
         #[pymethod]
-        fn to_cols_array_2d(&self, vm: &VirtualMachine) -> PyObjectRef {
-            let rows = self
+        fn to_cols_array_2d(zelf: &Py<Self>, vm: &VirtualMachine) -> PyObjectRef {
+            let rows = zelf
                 .0
                 .to_cols_array_2d()
                 .iter()
@@ -674,48 +674,56 @@ mod rustpython_impl {
             vm.ctx.new_list(rows).into()
         }
         #[pymethod]
-        fn to_scale_rotation_translation(&self) -> (PyDVec3, PyDQuat, PyDVec3) {
-            let (s, r, t) = self.0.to_scale_rotation_translation();
+        fn to_scale_rotation_translation(zelf: &Py<Self>) -> (PyDVec3, PyDQuat, PyDVec3) {
+            let (s, r, t) = zelf.0.to_scale_rotation_translation();
             (PyDVec3(s), PyDQuat(r), PyDVec3(t))
         }
         #[pymethod]
-        fn to_mat4(&self) -> PyDMat4 {
-            PyDMat4(glam::DMat4::from(self.0))
+        fn to_mat4(zelf: &Py<Self>) -> PyDMat4 {
+            PyDMat4(glam::DMat4::from(zelf.0))
         }
 
         #[pymethod]
-        fn transform_point3(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<PyDVec3> {
-            Ok(PyDVec3(self.0.transform_point3(extract_vec3(&rhs, vm)?)))
+        fn transform_point3(
+            zelf: &Py<Self>,
+            rhs: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<PyDVec3> {
+            Ok(PyDVec3(zelf.0.transform_point3(extract_vec3(&rhs, vm)?)))
         }
         #[pymethod]
-        fn transform_vector3(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<PyDVec3> {
-            Ok(PyDVec3(self.0.transform_vector3(extract_vec3(&rhs, vm)?)))
+        fn transform_vector3(
+            zelf: &Py<Self>,
+            rhs: PyObjectRef,
+            vm: &VirtualMachine,
+        ) -> PyResult<PyDVec3> {
+            Ok(PyDVec3(zelf.0.transform_vector3(extract_vec3(&rhs, vm)?)))
         }
         #[pymethod]
-        fn inverse(&self) -> Self {
-            Self(self.0.inverse())
+        fn inverse(zelf: &Py<Self>) -> Self {
+            Self(zelf.0.inverse())
         }
         #[pymethod]
-        fn is_finite(&self) -> bool {
-            self.0.is_finite()
+        fn is_finite(zelf: &Py<Self>) -> bool {
+            zelf.0.is_finite()
         }
         #[pymethod]
-        fn is_nan(&self) -> bool {
-            self.0.is_nan()
+        fn is_nan(zelf: &Py<Self>) -> bool {
+            zelf.0.is_nan()
         }
         #[pymethod]
         fn abs_diff_eq(
-            &self,
+            zelf: &Py<Self>,
             rhs: PyObjectRef,
             max_abs_diff: f64,
             vm: &VirtualMachine,
         ) -> PyResult<bool> {
-            Ok(self.0.abs_diff_eq(extract(&rhs, vm)?, max_abs_diff))
+            Ok(zelf.0.abs_diff_eq(extract(&rhs, vm)?, max_abs_diff))
         }
 
         #[pymethod]
-        fn to_json(&self, vm: &VirtualMachine) -> PyResult<String> {
-            crate::rp_serde::to_json(&self.0, vm)
+        fn to_json(zelf: &Py<Self>, vm: &VirtualMachine) -> PyResult<String> {
+            crate::rp_serde::to_json(&zelf.0, vm)
         }
         #[pystaticmethod]
         fn from_json(s: String, vm: &VirtualMachine) -> PyResult<Self> {
@@ -726,8 +734,8 @@ mod rustpython_impl {
             crate::rp_serde::try_from_json::<DAffine3>(&s).map(Self)
         }
         #[pymethod]
-        fn to_dict(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            crate::rp_serde::to_dict(&self.0, vm)
+        fn to_dict(zelf: &Py<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::to_dict(&zelf.0, vm)
         }
         #[pystaticmethod]
         fn from_dict(obj: PyObjectRef, vm: &VirtualMachine) -> PyResult<Self> {
@@ -739,8 +747,8 @@ mod rustpython_impl {
         }
 
         #[pymethod]
-        fn __getnewargs_ex__(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            crate::rp_serde::getnewargs_ex(&self.0, vm)
+        fn __getnewargs_ex__(zelf: &Py<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            crate::rp_serde::getnewargs_ex(&zelf.0, vm)
         }
         #[pygetset]
         fn __dict__(zelf: PyRef<Self>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
